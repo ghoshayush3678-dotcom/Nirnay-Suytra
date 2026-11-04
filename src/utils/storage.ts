@@ -62,10 +62,42 @@ export function loadInitialState(): {
     const rawItems = localStorage.getItem(LS_KEYS.ITEMS);
     const rawLogs = localStorage.getItem(LS_KEYS.LOGS);
 
+    const parsedLib = rawLib ? JSON.parse(rawLib) : null;
+    const parsedItems = rawItems ? JSON.parse(rawItems) : null;
+    const parsedLogs = rawLogs ? JSON.parse(rawLogs) : null;
+
+    const library: BrandLibraryState =
+      parsedLib && typeof parsedLib === 'object'
+        ? {
+            ...INITIAL_BRAND_LIBRARY,
+            ...parsedLib,
+            guidelines: Array.isArray(parsedLib.guidelines)
+              ? parsedLib.guidelines
+              : INITIAL_BRAND_LIBRARY.guidelines,
+            facts: Array.isArray(parsedLib.facts)
+              ? parsedLib.facts
+              : INITIAL_BRAND_LIBRARY.facts,
+            terminology: Array.isArray(parsedLib.terminology)
+              ? parsedLib.terminology
+              : INITIAL_BRAND_LIBRARY.terminology,
+            assets: Array.isArray(parsedLib.assets)
+              ? parsedLib.assets
+              : INITIAL_BRAND_LIBRARY.assets,
+            autopilotConfig: {
+              ...INITIAL_BRAND_LIBRARY.autopilotConfig,
+              ...(parsedLib.autopilotConfig || {}),
+              stats: {
+                ...INITIAL_BRAND_LIBRARY.autopilotConfig.stats,
+                ...(parsedLib.autopilotConfig?.stats || {}),
+              },
+            },
+          }
+        : INITIAL_BRAND_LIBRARY;
+
     return {
-      library: rawLib ? JSON.parse(rawLib) : INITIAL_BRAND_LIBRARY,
-      items: rawItems ? JSON.parse(rawItems) : INITIAL_CONTENT_ITEMS,
-      auditLogs: rawLogs ? JSON.parse(rawLogs) : INITIAL_AUDIT_LOGS,
+      library,
+      items: Array.isArray(parsedItems) ? parsedItems : INITIAL_CONTENT_ITEMS,
+      auditLogs: Array.isArray(parsedLogs) ? parsedLogs : INITIAL_AUDIT_LOGS,
     };
   } catch {
     return {
