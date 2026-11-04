@@ -1,0 +1,215 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedSuperAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email == "ghoshayush3678@gmail.com" &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isValidRole(role) {
+      return role in ['Creator', 'Manager', 'Reviewer', 'Brand Admin'];
+    }
+
+    function memberPath(workspaceId, uid) {
+      return /databases/$(database)/documents/workspaces/$(workspaceId)/members/$(uid);
+    }
+
+    function workspacePath(workspaceId) {
+      return /databases/$(database)/documents/workspaces/$(workspaceId);
+    }
+
+    function isWorkspaceMember(workspaceId) {
+      return isAuthenticated() &&
+        exists(memberPath(workspaceId, request.auth.uid)) &&
+        get(memberPath(workspaceId, request.auth.uid)).data.status == 'active';
+    }
+
+    function getMemberRole(workspaceId) {
+      return get(memberPath(workspaceId, request.auth.uid)).data.role;
+    }
+
+    function isWorkspaceBrandAdmin(workspaceId) {
+      return isBootstrappedSuperAdmin() ||
+        (isWorkspaceMember(workspaceId) && getMemberRole(workspaceId) == 'Brand Admin');
+    }
+
+    function canReadConfidential(workspaceId) {
+      return isBootstrappedSuperAdmin() ||
+        (isWorkspaceMember(workspaceId) &&
+          (getMemberRole(workspaceId) == 'Brand Admin' || getMemberRole(workspaceId) == 'Reviewer'));
+    }
+
+    // ===============================================================
+    // 1. User Profiles (/users/{userId})
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isBootstrappedSuperAdmin();
+
+      // On create: user can create their own profile.
+      // They can only set role == 'Brand Admin' if they own the workspace they just created,
+      // otherwise initial effective role must be 'Creator'.
+      allow create: if isOwner(userId) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.email is string &&
+        request.resource.data.displayName is string &&
+        isValidRole(request.resource.data.role) &&
+        request.resource.data.status == 'active' &&
+        (
+          request.resource.data.role == 'Creator' ||
+          isBootstrappedSuperAdmin() ||
+          (
+            request.resource.data.role == 'Brand Admin' &&
+            exists(workspacePath(request.resource.data.activeWorkspaceId)) &&
+            get(workspacePath(request.resource.data.activeWorkspaceId)).data.ownerUid == request.auth.uid
+          )
+        );
+
+      // Users can update their own profile fields (e.g. displayName, lastSignInAt, sessionEpoch),
+      // EXCEPT they cannot change their own role unless they are Brand Admin of that workspace.
+      allow update: if (
+        isOwner(userId) &&
+        request.resource.data.uid == resource.data.uid &&
+        (
+          request.resource.data.role == resource.data.role ||
+          isWorkspaceBrandAdmin(request.resource.data.activeWorkspaceId)
+        )
+      ) || isBootstrappedSuperAdmin();
+
+      // Users can delete their own account and data ("Delete my account and data")
+      allow delete: if isOwner(userId) || isBootstrappedSuperAdmin();
+    }
+
+    // ===============================================================
+    // 2. Workspaces (/workspaces/{workspaceId})
+    // ===============================================================
+    match /workspaces/{workspaceId} {
+      // Authenticated users can read workspace metadata to join via code or view their workspace
+      allow read: if isAuthenticated();
+
+      // Any authenticated user can create a new workspace where they are the ownerUid
+      allow create: if isAuthenticated() &&
+        request.resource.data.id == workspaceId &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.name.size() <= 120 &&
+        request.resource.data.autopilotMode in ['Off', 'Assisted', 'Autopilot'];
+
+      // Only the Brand Admin of the workspace can update workspace settings
+      allow update: if isWorkspaceBrandAdmin(workspaceId) &&
+        request.resource.data.ownerUid == resource.data.ownerUid;
+
+      allow delete: if isWorkspaceBrandAdmin(workspaceId);
+
+      // -------------------------------------------------------------
+      // 2a. Workspace Members (/workspaces/{workspaceId}/members/{memberUid})
+      // -------------------------------------------------------------
+      match /members/{memberUid} {
+        allow read: if isOwner(memberUid) || isWorkspaceMember(workspaceId) || isBootstrappedSuperAdmin();
+
+        // Joining a workspace:
+        // - If user is the workspace creator (ownerUid), they become 'Brand Admin' with 'approved' status.
+        // - If joining an existing workspace, user can NEVER pick 'Brand Admin'.
+        //   Their effective role MUST be 'Creator', and if requestedRole is Manager/Reviewer, approvalStatus is 'pending'.
+        allow create: if isOwner(memberUid) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.workspaceId == workspaceId &&
+          request.resource.data.status == 'active' &&
+          (
+            // Case A: Workspace Creator becomes Brand Admin
+            (
+              get(workspacePath(workspaceId)).data.ownerUid == request.auth.uid &&
+              request.resource.data.role == 'Brand Admin' &&
+              request.resource.data.requestedRole == 'Brand Admin' &&
+              request.resource.data.approvalStatus == 'approved'
+            ) ||
+            // Case B: Joining existing workspace as Creator (or requesting Manager/Reviewer pending approval)
+            (
+              request.resource.data.role == 'Creator' &&
+              request.resource.data.requestedRole in ['Creator', 'Manager', 'Reviewer'] &&
+              (
+                (request.resource.data.requestedRole == 'Creator' && request.resource.data.approvalStatus == 'approved') ||
+                (request.resource.data.requestedRole in ['Manager', 'Reviewer'] && request.resource.data.approvalStatus == 'pending')
+              )
+            )
+          );
+
+        // Updating member record:
+        // - Brand Admin can approve/reject role requests, change roles, or deactivate users.
+        // - A member can only update their own lastSignInAt / displayName / photoURL without changing role, status, or approvalStatus.
+        allow update: if isWorkspaceBrandAdmin(workspaceId) ||
+          (
+            isOwner(memberUid) &&
+            request.resource.data.role == resource.data.role &&
+            request.resource.data.requestedRole == resource.data.requestedRole &&
+            request.resource.data.approvalStatus == resource.data.approvalStatus &&
+            request.resource.data.status == resource.data.status
+          );
+
+        allow delete: if isOwner(memberUid) || isWorkspaceBrandAdmin(workspaceId);
+      }
+
+      // -------------------------------------------------------------
+      // 2b. Workspace Invites (/workspaces/{workspaceId}/invites/{inviteId})
+      // -------------------------------------------------------------
+      match /invites/{inviteId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isWorkspaceBrandAdmin(workspaceId) &&
+          request.resource.data.assignedRole in ['Creator', 'Manager', 'Reviewer'];
+      }
+
+      // -------------------------------------------------------------
+      // 2c. Brand Library Items (/workspaces/{workspaceId}/libraryItems/{itemId})
+      // Confidential items are readable ONLY by Reviewer and Brand Admin roles!
+      // -------------------------------------------------------------
+      match /libraryItems/{itemId} {
+        allow read: if isWorkspaceMember(workspaceId) &&
+          (
+            resource.data.confidential == false ||
+            canReadConfidential(workspaceId)
+          );
+
+        allow create, update, delete: if isWorkspaceBrandAdmin(workspaceId);
+      }
+
+      // -------------------------------------------------------------
+      // 2d. Content Items (/workspaces/{workspaceId}/contentItems/{itemId})
+      // -------------------------------------------------------------
+      match /contentItems/{itemId} {
+        allow read: if isWorkspaceMember(workspaceId);
+        allow create, update: if isWorkspaceMember(workspaceId) &&
+          request.resource.data.workspaceId == workspaceId;
+        allow delete: if isWorkspaceBrandAdmin(workspaceId);
+      }
+
+      // -------------------------------------------------------------
+      // 2e. Audit Logs (/workspaces/{workspaceId}/auditLogs/{logId})
+      // -------------------------------------------------------------
+      match /auditLogs/{logId} {
+        allow read: if isWorkspaceBrandAdmin(workspaceId) ||
+          (isWorkspaceMember(workspaceId) && getMemberRole(workspaceId) in ['Manager', 'Reviewer']);
+        allow create: if isWorkspaceMember(workspaceId) &&
+          request.resource.data.workspaceId == workspaceId;
+        allow update, delete: if false; // Audit logs are immutable
+      }
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

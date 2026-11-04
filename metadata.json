@@ -1,0 +1,6 @@
+{
+  "name": "Nirnay Sutra — Brand Governance & Proof Studio",
+  "description": "Every word, proven before it's published. AI-assisted, citation-verified brand governance platform for reviewing copy and visuals against approved guidelines, facts, and terminology.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

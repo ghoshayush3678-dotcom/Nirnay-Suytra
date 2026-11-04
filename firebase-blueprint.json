@@ -1,0 +1,203 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile with workspace membership, effective role, requested role, and session security epoch.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "displayName": { "type": "string", "description": "Full display name" },
+        "photoURL": { "type": "string", "description": "Avatar URL from Google or initials" },
+        "authProvider": { "type": "string", "enum": ["google", "password"], "description": "Sign-in method used" },
+        "emailVerified": { "type": "boolean", "description": "Whether email is verified" },
+        "activeWorkspaceId": { "type": "string", "description": "Currently selected workspace ID" },
+        "role": { "type": "string", "enum": ["Creator", "Manager", "Reviewer", "Brand Admin"], "description": "Effective role in active workspace" },
+        "requestedRole": { "type": "string", "enum": ["Creator", "Manager", "Reviewer", "Brand Admin"], "description": "Role requested upon workspace join" },
+        "approvalStatus": { "type": "string", "enum": ["approved", "pending", "rejected"], "description": "Admin approval status for requested role" },
+        "status": { "type": "string", "enum": ["active", "deactivated"], "description": "Account activation status" },
+        "consentedToTermsAt": { "type": "string", "description": "ISO timestamp of terms and privacy consent" },
+        "sessionEpoch": { "type": "number", "description": "Counter incremented on 'Sign out of all devices'" },
+        "lastSignInAt": { "type": "string", "description": "ISO timestamp of latest sign-in" },
+        "createdAt": { "type": "string", "description": "ISO timestamp of profile creation" }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "authProvider",
+        "emailVerified",
+        "activeWorkspaceId",
+        "role",
+        "approvalStatus",
+        "status",
+        "consentedToTermsAt",
+        "sessionEpoch",
+        "lastSignInAt",
+        "createdAt"
+      ]
+    },
+    "Workspace": {
+      "title": "Workspace",
+      "description": "Brand governance organisation workspace.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Workspace unique ID" },
+        "name": { "type": "string", "description": "Organisation / Brand name" },
+        "workspaceCode": { "type": "string", "description": "Join code for workspace" },
+        "ownerUid": { "type": "string", "description": "UID of the workspace creator (initial Brand Admin)" },
+        "autopilotMode": { "type": "string", "enum": ["Off", "Assisted", "Autopilot"], "description": "Active Autopilot mode" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "name", "workspaceCode", "ownerUid", "autopilotMode", "createdAt"]
+    },
+    "WorkspaceMember": {
+      "title": "WorkspaceMember",
+      "description": "Membership record inside a workspace with role and approval status.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Member UID" },
+        "workspaceId": { "type": "string", "description": "Parent workspace ID" },
+        "email": { "type": "string", "description": "Member email" },
+        "displayName": { "type": "string", "description": "Member display name" },
+        "photoURL": { "type": "string", "description": "Member avatar URL" },
+        "role": { "type": "string", "enum": ["Creator", "Manager", "Reviewer", "Brand Admin"], "description": "Effective active role" },
+        "requestedRole": { "type": "string", "enum": ["Creator", "Manager", "Reviewer", "Brand Admin"], "description": "Requested role if awaiting approval" },
+        "approvalStatus": { "type": "string", "enum": ["approved", "pending", "rejected"], "description": "Role approval status" },
+        "status": { "type": "string", "enum": ["active", "deactivated"], "description": "Member status in workspace" },
+        "joinedAt": { "type": "string", "description": "Timestamp joined" },
+        "lastSignInAt": { "type": "string", "description": "Most recent sign-in timestamp" }
+      },
+      "required": [
+        "uid",
+        "workspaceId",
+        "email",
+        "displayName",
+        "role",
+        "requestedRole",
+        "approvalStatus",
+        "status",
+        "joinedAt",
+        "lastSignInAt"
+      ]
+    },
+    "WorkspaceInvite": {
+      "title": "WorkspaceInvite",
+      "description": "Time-limited invite link with pre-assigned role created by a Brand Admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Invite token / code" },
+        "workspaceId": { "type": "string", "description": "Target workspace ID" },
+        "workspaceName": { "type": "string", "description": "Target workspace name" },
+        "assignedRole": { "type": "string", "enum": ["Creator", "Manager", "Reviewer"], "description": "Pre-assigned role" },
+        "createdByUid": { "type": "string", "description": "Brand Admin UID who generated the link" },
+        "createdByName": { "type": "string", "description": "Brand Admin name" },
+        "expiresAt": { "type": "string", "description": "ISO expiry date" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "usedCount": { "type": "number", "description": "Number of times used" },
+        "revoked": { "type": "boolean", "description": "Whether invite was revoked" }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "workspaceName",
+        "assignedRole",
+        "createdByUid",
+        "createdByName",
+        "expiresAt",
+        "createdAt",
+        "usedCount",
+        "revoked"
+      ]
+    },
+    "LibraryItemDoc": {
+      "title": "LibraryItemDoc",
+      "description": "Workspace-scoped Brand Library item (Guideline, Approved Fact, Terminology, or Asset) with Confidential access control.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Item ID" },
+        "workspaceId": { "type": "string", "description": "Owning workspace ID" },
+        "itemType": { "type": "string", "enum": ["guideline", "fact", "terminology", "asset"], "description": "Type of library item" },
+        "title": { "type": "string", "description": "Title or term" },
+        "confidential": { "type": "boolean", "description": "True if visible only to Reviewer and Brand Admin roles" },
+        "payloadJson": { "type": "string", "description": "Serialized item data" },
+        "updatedAt": { "type": "string", "description": "Last modified timestamp" }
+      },
+      "required": ["id", "workspaceId", "itemType", "title", "confidential", "payloadJson", "updatedAt"]
+    },
+    "ContentItemDoc": {
+      "title": "ContentItemDoc",
+      "description": "Workspace-scoped content item under review.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Content item ID" },
+        "workspaceId": { "type": "string", "description": "Owning workspace ID" },
+        "authorUid": { "type": "string", "description": "Creator UID" },
+        "title": { "type": "string", "description": "Campaign title" },
+        "status": { "type": "string", "enum": ["Draft", "AI-checked", "In review", "Changes requested", "Approved"], "description": "Workflow status" },
+        "payloadJson": { "type": "string", "description": "Serialized ContentItem record" },
+        "updatedAt": { "type": "string", "description": "Last updated timestamp" }
+      },
+      "required": ["id", "workspaceId", "authorUid", "title", "status", "payloadJson", "updatedAt"]
+    },
+    "AuditLogDoc": {
+      "title": "AuditLogDoc",
+      "description": "Immutable workspace audit log entry for AI calls, human decisions, sign-ins, and role changes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Audit log entry ID" },
+        "workspaceId": { "type": "string", "description": "Owning workspace ID" },
+        "actorUid": { "type": "string", "description": "Actor UID" },
+        "actorName": { "type": "string", "description": "Actor display name" },
+        "actorRole": { "type": "string", "description": "Actor role at event time" },
+        "eventType": { "type": "string", "description": "Audit event category" },
+        "targetId": { "type": "string", "description": "Target object ID" },
+        "targetTitle": { "type": "string", "description": "Target title" },
+        "summary": { "type": "string", "description": "Human-readable audit summary" },
+        "timestamp": { "type": "string", "description": "Event timestamp" }
+      },
+      "required": [
+        "id",
+        "workspaceId",
+        "actorUid",
+        "actorName",
+        "actorRole",
+        "eventType",
+        "targetId",
+        "targetTitle",
+        "summary",
+        "timestamp"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Individual user profile documents. Users can read and update their own profile fields except role."
+    },
+    "/workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/Workspace" },
+      "description": "Brand governance workspaces."
+    },
+    "/workspaces/{workspaceId}/members/{memberUid}": {
+      "schema": { "$ref": "#/entities/WorkspaceMember" },
+      "description": "Workspace member records with role and admin approval state."
+    },
+    "/workspaces/{workspaceId}/invites/{inviteId}": {
+      "schema": { "$ref": "#/entities/WorkspaceInvite" },
+      "description": "Workspace invite tokens created by Brand Admins."
+    },
+    "/workspaces/{workspaceId}/libraryItems/{itemId}": {
+      "schema": { "$ref": "#/entities/LibraryItemDoc" },
+      "description": "Brand library items. Confidential items are readable only by Reviewer and Brand Admin roles."
+    },
+    "/workspaces/{workspaceId}/contentItems/{itemId}": {
+      "schema": { "$ref": "#/entities/ContentItemDoc" },
+      "description": "Workspace content items."
+    },
+    "/workspaces/{workspaceId}/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLogDoc" },
+      "description": "Immutable workspace audit log entries."
+    }
+  }
+}
