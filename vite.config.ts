@@ -1,15 +1,51 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, Plugin} from 'vite';
+
+/**
+ * Allows root /index.html to reference pre-built ./dist/assets/app.js and ./dist/assets/index.css
+ * for zero-build static hosting (e.g., GitHub Pages serving root /), while seamlessly swapping to
+ * /src/main.tsx when running `vite dev` or `vite build`.
+ */
+function staticRootCompatPlugin(): Plugin {
+  return {
+    name: 'static-root-compat',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        return html
+          .replace(/<link[^>]*href="\.\/dist\/assets\/index\.css"[^>]*>\s*/g, '')
+          .replace(
+            /<script[^>]*src="\.\/dist\/assets\/app\.js"[^>]*><\/script>/g,
+            '<script type="module" src="/src/main.tsx"></script>'
+          );
+      },
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
     base: './',
-    plugins: [react(), tailwindcss()],
+    plugins: [staticRootCompatPlugin(), react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+      },
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/app.js',
+          chunkFileNames: 'assets/[name].js',
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name && assetInfo.name.endsWith('.css')) {
+              return 'assets/index.css';
+            }
+            return 'assets/[name]-[hash][extname]';
+          },
+        },
       },
     },
     server: {
