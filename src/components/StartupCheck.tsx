@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Settings, CheckCircle2, AlertTriangle, ArrowRight, RefreshCw, Sparkles, ExternalLink } from 'lucide-react';
 import { getFirebaseSetupStatus, FirebaseSetupStatus } from '../utils/firebaseClient';
+import { ThemeToggle } from './ThemeToggle';
 
 interface StartupCheckProps {
   status: FirebaseSetupStatus;
@@ -32,9 +33,12 @@ export const StartupCheck: React.FC<StartupCheckProps> = ({ status, onExploreDem
             Nirnay Sutra
           </span>
         </div>
-        <span className="text-xs font-mono-tabular uppercase tracking-wider text-[#B45309] bg-[#FEF3C7] px-2.5 py-1 rounded border border-[#FDE68A]">
-          Setup Required
-        </span>
+        <div className="flex items-center gap-3">
+          <ThemeToggle variant="compact" />
+          <span className="text-xs font-mono-tabular uppercase tracking-wider text-[#B45309] bg-[#FEF3C7] dark:bg-[#78350F]/40 dark:text-[#FDE68A] dark:border-[#B45309]/50 px-2.5 py-1 rounded border border-[#FDE68A]">
+            Setup Required
+          </span>
+        </div>
       </header>
 
       {/* Main Alert Card */}

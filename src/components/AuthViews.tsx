@@ -31,6 +31,7 @@ import {
   formatAuthError,
   FormattedAuthError,
 } from '../utils/firebaseClient';
+import { ThemeToggle } from './ThemeToggle';
 
 interface AuthViewsProps {
   initialMode?: 'login' | 'signup' | 'verify-email' | 'pending-approval';
@@ -552,14 +553,17 @@ export const AuthViews: React.FC<AuthViewsProps> = ({
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={onBackToLanding}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#526360] hover:text-[#0B3D3A] cursor-pointer"
-          >
-            <Home className="w-3.5 h-3.5" />
-            <span>Back to Editorial Overview</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <ThemeToggle variant="compact" />
+            <button
+              type="button"
+              onClick={onBackToLanding}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#526360] hover:text-[#0B3D3A] cursor-pointer"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>Back to Editorial Overview</span>
+            </button>
+          </div>
         </div>
       </header>
 

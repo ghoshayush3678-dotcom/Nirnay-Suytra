@@ -87,6 +87,7 @@ import {
   DatabaseConnectionErrorState,
   DailyQuotaReachedState,
 } from './components/EditorialEmptyStates';
+import { ThemeToggle } from './components/ThemeToggle';
 
 export type DevPreviewScenario =
   | 'normal'
@@ -1841,6 +1842,9 @@ export default function App() {
                 <span>Paste / New Draft</span>
               </button>
 
+              {/* Theme Toggle (Light / Dark Mode) */}
+              <ThemeToggle variant="compact" />
+
               {/* ACCOUNT MENU IN HEADER */}
               <div className="relative" ref={accountMenuRef}>
                 <button
@@ -1932,6 +1936,14 @@ export default function App() {
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    {/* Theme Mode Preference (Light / Dark / System) */}
+                    <div className="space-y-1.5 pb-3 border-b border-[#E4DFD3] dark:border-[#1C3330]">
+                      <div className="flex items-center justify-between text-[11px] font-mono-tabular uppercase text-[#526360] dark:text-[#9BB0AC]">
+                        <span>Theme Mode</span>
+                      </div>
+                      <ThemeToggle variant="segmented" className="w-full justify-between" />
                     </div>
 
                     {/* Quick Links: Team & Access (Brand Admin) and Privacy Notice */}

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { GENERATED_PHOTOS } from '../data/kaveriSeed';
 import { ResilientImage } from './ResilientImage';
+import { ThemeToggle } from './ThemeToggle';
 
 interface LandingPageProps {
   onEnterWorkspace: (targetTab?: string) => void;
@@ -115,8 +116,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterWorkspace }) =>
             </button>
           </nav>
 
-          {/* Zone 3: 1 Primary Action */}
-          <div className="flex items-center shrink-0">
+          {/* Zone 3: Theme Toggle & Primary Action */}
+          <div className="flex items-center gap-2.5 shrink-0">
+            <ThemeToggle variant="compact" />
             <button
               type="button"
               onClick={() => onEnterWorkspace('autopilot')}

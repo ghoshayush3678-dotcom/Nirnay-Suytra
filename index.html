@@ -16,9 +16,22 @@
     <script>
       window.global = window;
       window.process = window.process || { env: {}, emit: function () {} };
+      (function() {
+        try {
+          var stored = localStorage.getItem('nirnay_theme_mode');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (stored === 'dark' || (stored !== 'light' && prefersDark)) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
     </script>
   </head>
-  <body class="bg-[#FAF8F4] text-[#142321] antialiased selection:bg-[#7FD1BF]/40 selection:text-[#0B3D3A]">
+  <body class="bg-[#FAF8F4] dark:bg-[#0B1615] text-[#142321] dark:text-[#F4F7F6] antialiased selection:bg-[#7FD1BF]/40 selection:text-[#0B3D3A] selection:dark:bg-[#7FD1BF]/30 selection:dark:text-[#7FD1BF]">
     <div id="root"></div>
     <script type="module" src="./src/main.tsx"></script>
   </body>
