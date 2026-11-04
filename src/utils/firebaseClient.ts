@@ -428,51 +428,34 @@ export function handleFirestoreError(
   return errInfo;
 }
 
-// Connection check on startup with automatic databaseId fallback ((default) <-> provisioned ID)
+// Connection check that avoids unauthenticated WebChannel 404 requests on startup
 let connectionTested = false;
 export async function testFirestoreConnection(): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return false;
+  }
   if (!appInstance || !dbInstance) return false;
+  // Do not open unauthenticated Firestore WebChannel streams on the landing page or demo mode
+  if (!authInstance?.currentUser) {
+    return true;
+  }
   if (connectionTested) return true;
   connectionTested = true;
 
-  const configuredDbId = (rawEnvConfig.VITE_FIRESTORE_DATABASE_ID || '').trim();
-  const candidateDbIds = Array.from(
-    new Set(
-      [
-        configuredDbId,
-        'ai-studio-nirnaysutrabrand-efd965bb-100a-4649-b9ba-8c8d08c2ad78',
-        '(default)',
-      ].filter(Boolean)
-    )
-  );
-
-  for (const candidateId of candidateDbIds) {
-    const candidateDb: Firestore =
-      candidateId === configuredDbId && dbInstance
-        ? dbInstance
-        : createResilientFirestore(appInstance, candidateId);
-    try {
-      await getDocFromServer(doc(candidateDb, 'test', 'connection'));
-      dbInstance = candidateDb;
-      db = candidateDb;
+  try {
+    await getDocFromServer(doc(dbInstance, 'users', authInstance.currentUser.uid));
+    return true;
+  } catch (error: any) {
+    const code = typeof error?.code === 'string' ? error.code : '';
+    const msg = error instanceof Error ? error.message : String(error);
+    if (
+      code === 'permission-denied' ||
+      msg.toLowerCase().includes('missing or insufficient permissions')
+    ) {
       return true;
-    } catch (error: any) {
-      const code = typeof error?.code === 'string' ? error.code : '';
-      const msg = error instanceof Error ? error.message : String(error);
-      // 'permission-denied' means the server responded and the database exists!
-      if (
-        code === 'permission-denied' ||
-        msg.toLowerCase().includes('missing or insufficient permissions')
-      ) {
-        dbInstance = candidateDb;
-        db = candidateDb;
-        return true;
-      }
-      // Otherwise try next candidate databaseId
     }
+    return false;
   }
-
-  return false;
 }
 
 // Local storage keys for session continuity & isolated Demo Sandbox state

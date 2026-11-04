@@ -3,6 +3,7 @@ import {
   INITIAL_BRAND_LIBRARY,
   INITIAL_CONTENT_ITEMS,
   INITIAL_AUDIT_LOGS,
+  resolveAssetUrl,
 } from '../data/kaveriSeed';
 
 const DB_NAME = 'nirnay_sutra_db';
@@ -94,9 +95,16 @@ export function loadInitialState(): {
           }
         : INITIAL_BRAND_LIBRARY;
 
+    const normalizedItems: ContentItem[] = Array.isArray(parsedItems)
+      ? parsedItems.map((it: ContentItem) => ({
+          ...it,
+          imageUrl: resolveAssetUrl(it.imageUrl),
+        }))
+      : INITIAL_CONTENT_ITEMS;
+
     return {
       library,
-      items: Array.isArray(parsedItems) ? parsedItems : INITIAL_CONTENT_ITEMS,
+      items: normalizedItems,
       auditLogs: Array.isArray(parsedLogs) ? parsedLogs : INITIAL_AUDIT_LOGS,
     };
   } catch {

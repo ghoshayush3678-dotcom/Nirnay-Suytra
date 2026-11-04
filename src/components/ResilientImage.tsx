@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FileImage } from 'lucide-react';
+import { resolveAssetUrl } from '../data/kaveriSeed';
 
 interface ResilientImageProps {
   src?: string;
@@ -17,8 +18,9 @@ export const ResilientImage: React.FC<ResilientImageProps> = ({
   caption,
 }) => {
   const [hasError, setHasError] = useState(false);
+  const resolvedSrc = resolveAssetUrl(src);
 
-  if (!src || hasError) {
+  if (!resolvedSrc || hasError) {
     return (
       <div
         className={`relative overflow-hidden bg-[#EFECE4] border border-[#E4DFD3] flex flex-col items-center justify-center p-6 text-center ${aspectClass} ${className}`}
@@ -41,7 +43,7 @@ export const ResilientImage: React.FC<ResilientImageProps> = ({
   return (
     <figure className={`relative overflow-hidden bg-[#EFECE4] ${className}`}>
       <img
-        src={src}
+        src={resolvedSrc}
         alt={alt}
         referrerPolicy="no-referrer"
         onError={() => setHasError(true)}

@@ -3,14 +3,44 @@ import {
   ContentItem,
   AuditLogEntry,
 } from '../types';
+import heroEditorialReviewImg from '../assets/images/hero_editorial_review_1793792676936.jpg';
+import teamCopyDiscussionImg from '../assets/images/team_copy_discussion_1793792676168.jpg';
+import quietWorkspaceSwatchImg from '../assets/images/quiet_workspace_swatch_1793792679701.jpg';
+import brandGovernanceMeetingImg from '../assets/images/brand_governance_meeting_1793792680515.jpg';
+import studioArchiveShelfImg from '../assets/images/studio_archive_shelf_1793792681092.jpg';
 
 export const GENERATED_PHOTOS = {
-  heroEditorialReview: '/src/assets/images/hero_editorial_review_1793792676936.jpg',
-  teamCopyDiscussion: '/src/assets/images/team_copy_discussion_1793792676168.jpg',
-  quietWorkspaceSwatch: '/src/assets/images/quiet_workspace_swatch_1793792679701.jpg',
-  brandGovernanceMeeting: '/src/assets/images/brand_governance_meeting_1793792680515.jpg',
-  studioArchiveShelf: '/src/assets/images/studio_archive_shelf_1793792681092.jpg',
+  heroEditorialReview: heroEditorialReviewImg,
+  teamCopyDiscussion: teamCopyDiscussionImg,
+  quietWorkspaceSwatch: quietWorkspaceSwatchImg,
+  brandGovernanceMeeting: brandGovernanceMeetingImg,
+  studioArchiveShelf: studioArchiveShelfImg,
 };
+
+const LEGACY_PATH_MAP: Record<string, string> = {
+  '/src/assets/images/hero_editorial_review_1793792676936.jpg':
+    heroEditorialReviewImg,
+  '/src/assets/images/team_copy_discussion_1793792676168.jpg':
+    teamCopyDiscussionImg,
+  '/src/assets/images/quiet_workspace_swatch_1793792679701.jpg':
+    quietWorkspaceSwatchImg,
+  '/src/assets/images/brand_governance_meeting_1793792680515.jpg':
+    brandGovernanceMeetingImg,
+  '/src/assets/images/studio_archive_shelf_1793792681092.jpg':
+    studioArchiveShelfImg,
+};
+
+export function resolveAssetUrl(url?: string): string | undefined {
+  if (!url) return url;
+  if (LEGACY_PATH_MAP[url]) return LEGACY_PATH_MAP[url];
+  for (const [legacyPath, bundledUrl] of Object.entries(LEGACY_PATH_MAP)) {
+    const filename = legacyPath.split('/').pop();
+    if (filename && url.endsWith(filename)) {
+      return bundledUrl;
+    }
+  }
+  return url;
+}
 
 export const INITIAL_BRAND_LIBRARY: BrandLibraryState = {
   brandName: 'Kaveri Organics',
