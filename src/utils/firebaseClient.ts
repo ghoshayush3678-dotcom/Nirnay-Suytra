@@ -33,7 +33,6 @@ import {
   WorkspaceRecord,
   SignInActivityRecord,
 } from '../types';
-import firebaseAppletConfig from '../../firebase-applet-config.json';
 
 export enum OperationType {
   CREATE = 'create',
@@ -92,27 +91,16 @@ export interface FormattedAuthError {
 }
 
 // ============================================================================
-// 1. Read Firebase Config from VITE_* Environment Variables
-//    with automatic fallback to provisioned firebase-applet-config.json
+// 1. Read Firebase Config ONLY from VITE_* Environment Variables
 // ============================================================================
 const rawEnvConfig: Record<RequiredFirebaseEnvKey, string | undefined> = {
-  VITE_FIREBASE_API_KEY:
-    import.meta.env.VITE_FIREBASE_API_KEY || firebaseAppletConfig.apiKey,
-  VITE_FIREBASE_AUTH_DOMAIN:
-    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseAppletConfig.authDomain,
-  VITE_FIREBASE_PROJECT_ID:
-    import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseAppletConfig.projectId,
-  VITE_FIREBASE_STORAGE_BUCKET:
-    import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ||
-    firebaseAppletConfig.storageBucket,
-  VITE_FIREBASE_MESSAGING_SENDER_ID:
-    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ||
-    firebaseAppletConfig.messagingSenderId,
-  VITE_FIREBASE_APP_ID:
-    import.meta.env.VITE_FIREBASE_APP_ID || firebaseAppletConfig.appId,
-  VITE_FIRESTORE_DATABASE_ID:
-    import.meta.env.VITE_FIRESTORE_DATABASE_ID ||
-    firebaseAppletConfig.firestoreDatabaseId,
+  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
+  VITE_FIRESTORE_DATABASE_ID: import.meta.env.VITE_FIRESTORE_DATABASE_ID,
 };
 
 const REQUIRED_ENV_KEYS: RequiredFirebaseEnvKey[] = [

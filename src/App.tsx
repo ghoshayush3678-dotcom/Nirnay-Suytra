@@ -193,8 +193,12 @@ export default function App() {
     () => loadSignInActivity()
   );
 
-  // Navigation & Route state
-  const [activeTab, setActiveTab] = useState<ActiveTab>('landing');
+  // Navigation & Route state (Hash-based routing for GitHub Pages & deep link support)
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window === 'undefined') return 'landing';
+    const hash = window.location.hash.replace(/^#\/?/, '').trim() as ActiveTab;
+    return hash && ROUTE_PERMISSIONS[hash] ? hash : 'landing';
+  });
   const [selectedItemId, setSelectedItemId] = useState<string>(
     initialState.items[0]?.id || 'CI-04'
   );
@@ -272,13 +276,16 @@ export default function App() {
     persistState(library, items, auditLogs);
   }, [library, items, auditLogs]);
 
-  // Support URL hash route guards (so typing e.g. #/team-access or #/insights triggers route guard)
+  // Support URL hash route synchronization & guards (GitHub Pages refresh & deep linking)
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#\/?/, '').trim() as ActiveTab;
       if (hash && ROUTE_PERMISSIONS[hash]) {
         if (!userProfile && hash !== 'landing' && hash !== 'auth') {
           setAuthRedirectNotice('Please sign in to continue.');
+          if (window.location.hash !== '#/auth') {
+            window.location.hash = '#/auth';
+          }
           setActiveTab('auth');
         } else {
           setActiveTab(hash);
@@ -293,15 +300,16 @@ export default function App() {
   const navigateToTab = (tab: ActiveTab) => {
     if (!userProfile && tab !== 'landing' && tab !== 'auth') {
       setAuthRedirectNotice('Please sign in to continue.');
+      if (window.location.hash !== '#/auth') {
+        window.location.hash = '#/auth';
+      }
       setActiveTab('auth');
       return;
     }
-    setActiveTab(tab);
-    try {
-      window.history.replaceState(null, '', `#/${tab}`);
-    } catch {
-      // ignore in restricted iframe
+    if (window.location.hash !== `#/${tab}`) {
+      window.location.hash = `#/${tab}`;
     }
+    setActiveTab(tab);
   };
 
   // Close Account Menu when clicking outside
