@@ -16,6 +16,7 @@ import {
   Plus,
   CheckCircle2,
   AlertTriangle,
+  Flag,
 } from 'lucide-react';
 import {
   ContentItem,
@@ -24,6 +25,7 @@ import {
   UserRole,
   RetrievedPassage,
   VerifierStats,
+  AuditEventType,
 } from '../types';
 import {
   retrieveTopPassages,
@@ -49,13 +51,7 @@ interface ReviewStudioViewProps {
   onUpdateItem: (updatedItem: ContentItem) => void;
   onCreateNewDraft: () => void;
   onRecordAudit: (
-    eventType:
-      | 'AI_CALL'
-      | 'HUMAN_DECISION'
-      | 'STATUS_TRANSITION'
-      | 'AUTOPILOT_AUTO_APPROVE'
-      | 'AUTOPILOT_ESCALATE'
-      | 'AUTOPILOT_ROLLBACK',
+    eventType: AuditEventType,
     targetId: string,
     targetTitle: string,
     summary: string,
@@ -109,6 +105,12 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
   const [dismissingFindingId, setDismissingFindingId] = useState<string | null>(null);
   const [dismissReason, setDismissReason] = useState('Contextually appropriate exception');
   const [markGuidelineConfusing, setMarkGuidelineConfusing] = useState(false);
+
+  // Report Issue / Feedback State
+  const [reportingFindingId, setReportingFindingId] = useState<string | null>(null);
+  const [reportReasonCategory, setReportReasonCategory] = useState<string>('Incorrect AI feedback');
+  const [reportNote, setReportNote] = useState<string>('');
+  const [reportedFindingIds, setReportedFindingIds] = useState<Record<string, string>>({});
 
   // Upload Feedback
   const [uploadStatusMsg, setUploadStatusMsg] = useState<string | null>(null);
@@ -333,6 +335,28 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
       }
     }
     e.target.value = '';
+  };
+
+  // Pre-fill Kaveri Organics sample draft so user can test immediately
+  const handleLoadSampleContent = () => {
+    const sampleItem: ContentItem = {
+      ...currentItem,
+      title: 'Kaveri Organics — Monsoon Promo Draft',
+      channel: 'Email & Social',
+      currentText:
+        'Kaveri Organics Wayanad Virgin Coconut Oil (500ml) is cold-pressed from fresh organic coconuts in Kerala. Our oil is 100% pesticide-free, guaranteeing pure wellness at ₹480 per bottle.\n\nEnjoy chemical-free purity from farm to table with 28.5% margin pricing.',
+      bannerConfig: {
+        hasBanner: true,
+        headline: 'Pure Coconut Oil',
+        subline: '100% Pesticide-Free Wellness',
+        fgHex: '#142321',
+        bgHex: '#FAF8F4',
+        accentHex: '#17806D',
+        logoVariant: 'official-seal',
+      },
+    };
+    onUpdateItem(sampleItem);
+    setUploadStatusMsg('Loaded Kaveri Organics sample draft. Click "Check my content" to scan!');
   };
 
   // Execute Retrieval + Deterministic Rules + Consent-Gated Gemini API Check + Citation Verifier
@@ -614,6 +638,51 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
     setMarkGuidelineConfusing(false);
   };
 
+  // Flag incorrect or outdated AI feedback for administrative review
+  const handleReportIssue = (finding: Finding) => {
+    const reasonText = `${reportReasonCategory}${
+      reportNote.trim() ? `: ${reportNote.trim()}` : ''
+    }`;
+
+    const nextFindings = currentItem.findings.map((f) =>
+      f.id === finding.id
+        ? {
+            ...f,
+            reportedAsIssue: true,
+            issueReportReason: reasonText,
+          }
+        : f
+    );
+
+    const updatedItem: ContentItem = {
+      ...currentItem,
+      findings: nextFindings,
+    };
+    onUpdateItem(updatedItem);
+
+    // Increment dispute counter on the underlying guideline for Brand Admin review
+    onIncrementGuidelineDispute(finding.sourceId);
+
+    onRecordAudit(
+      'LIBRARY_UPDATE',
+      currentItem.id,
+      currentItem.title,
+      `Flagged AI suggestion on "${finding.quotedText}" citing ${finding.sourceId} for administrative review: ${reasonText}`,
+      {
+        sourceId: finding.sourceId,
+        sourceTitle: finding.sourceTitle,
+        decision: 'REPORTED_ISSUE_FOR_ADMIN_REVIEW',
+      }
+    );
+
+    setReportedFindingIds((prev) => ({
+      ...prev,
+      [finding.id]: reasonText,
+    }));
+    setReportingFindingId(null);
+    setReportNote('');
+  };
+
   // Render Annotated Content with interactive clickable highlights for open findings
   const renderAnnotatedText = () => {
     const text = currentItem.currentText;
@@ -702,6 +771,15 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
 
   const openCount = currentItem.findings.filter((f) => f.status === 'open').length;
   const resolvedCount = currentItem.findings.filter((f) => f.status !== 'open').length;
+  const needsFixingCount = currentItem.findings.filter(
+    (f) => f.status === 'open' && (f.severity === 'high' || (f.riskScore ?? 0) >= library.autopilotConfig.highRiskThreshold)
+  ).length;
+  const worthALookCount = currentItem.findings.filter(
+    (f) => f.status === 'open' && !(f.severity === 'high' || (f.riskScore ?? 0) >= library.autopilotConfig.highRiskThreshold)
+  ).length;
+  const needsHumanCount = currentItem.findings.filter(
+    (f) => f.status === 'open' && f.needsHumanJudgement
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -767,10 +845,20 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
         </div>
 
         {/* Studio Action Controls */}
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <label className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#0B3D3A] bg-[#F3EFE6] border border-[#E4DFD3] hover:border-[#0B3D3A] rounded transition-colors cursor-pointer whitespace-nowrap shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleLoadSampleContent}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#0B3D3A] bg-[#F3EFE6] border border-[#E4DFD3] hover:border-[#0B3D3A] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            title="Load the Kaveri Organics sample draft so you can test reviews immediately"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#17806D]" />
+            <span>Try with sample content</span>
+          </button>
+
+          <label className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#526360] bg-[#FAF8F4] border border-[#E4DFD3] hover:border-[#0B3D3A] rounded transition-colors cursor-pointer whitespace-nowrap shrink-0">
             <Upload className="w-3.5 h-3.5" />
-            <span>Upload (.txt, .png, .jpg, .pdf, .docx)</span>
+            <span>Upload file</span>
             <input
               type="file"
               accept=".txt,.md,.png,.jpg,.jpeg,.webp,.pdf,.docx"
@@ -782,16 +870,17 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
           <button
             type="button"
             onClick={() => setConsentModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-[#FAF8F4] bg-[#0B3D3A] hover:bg-[#17806D] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-[#FAF8F4] bg-[#0B3D3A] hover:bg-[#17806D] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-xs"
+            title="Scan draft against approved guidelines, verified facts, and tone rules"
           >
             <Play className="w-3.5 h-3.5" />
-            <span>Run Citation-Verified Check</span>
+            <span>Check my content</span>
           </button>
 
           <button
             type="button"
             onClick={() => onOpenApprovals(currentItem.id)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-[#0B3D3A] border border-[#0B3D3A]/40 hover:bg-[#0B3D3A] hover:text-[#FAF8F4] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#0B3D3A] border border-[#0B3D3A]/40 hover:bg-[#0B3D3A] hover:text-[#FAF8F4] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <span>Approvals Queue</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1228,6 +1317,42 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
               </div>
             </div>
 
+            {/* Plain-Language Status & Summary Banner */}
+            {currentItem.findings.length > 0 && (
+              <div className="mb-4 p-3.5 bg-[#F3EFE6]/70 border border-[#E4DFD3] rounded flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="font-medium text-[#0B3D3A]">
+                  {openCount > 0 ? (
+                    <span>
+                      <strong className="text-sm">{openCount} issue{openCount === 1 ? '' : 's'} found:</strong>{' '}
+                      <span className="text-[#991B1B] font-semibold">{needsFixingCount} needs fixing</span>
+                      {worthALookCount > 0 && (
+                        <span>, <span className="text-[#B45309] font-semibold">{worthALookCount} worth a look</span></span>
+                      )}
+                      {needsHumanCount > 0 && (
+                        <span> · <span className="text-[#B45309]">{needsHumanCount} needs a person to decide</span></span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-[#17806D] font-semibold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      All issues resolved! Ready to submit to human reviewer.
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] font-mono-tabular text-[#526360] bg-[#FAF8F4] px-2 py-0.5 rounded border border-[#E4DFD3]">
+                  {currentItem.status === 'Draft'
+                    ? 'Step 1 of 4: Add content'
+                    : openCount > 0
+                    ? 'Step 2 of 4: Fix the suggestions'
+                    : currentItem.status === 'In review'
+                    ? 'Step 3 of 4: In review'
+                    : currentItem.status === 'Approved'
+                    ? 'Step 4 of 4: Approved'
+                    : 'Step 2 of 4: Review findings'}
+                </div>
+              </div>
+            )}
+
             {displayedFindings.length === 0 ? (
               findingFilter !== 'all' && currentItem.findings.length > 0 ? (
                 <EditorialEmptyCard
@@ -1310,11 +1435,25 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
                           <span>Confidence {Math.round(finding.confidence * 100)}%</span>
                         </div>
 
-                        {finding.needsHumanJudgement && (
-                          <span className="text-[#B45309] font-semibold bg-[#F5A524]/20 px-2 py-0.5 rounded-sm">
-                            Needs human judgement
-                          </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {(finding.severity === 'high' || (finding.riskScore ?? 0) >= library.autopilotConfig.highRiskThreshold) ? (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5] flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#991B1B]" />
+                              Needs fixing
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A] flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#B45309]" />
+                              Worth a look
+                            </span>
+                          )}
+
+                          {finding.needsHumanJudgement && (
+                            <span className="text-[#B45309] font-semibold bg-[#F5A524]/20 border border-[#F5A524]/40 px-2 py-0.5 rounded text-[11px]">
+                              Needs a person to decide
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Flagged Quoted Span */}
@@ -1436,49 +1575,159 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
                         </div>
                       )}
 
+                      {/* Inline Report an Issue for Administrative Review Box */}
+                      {reportingFindingId === finding.id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="mb-4 p-3.5 bg-[#FAF8F4] border border-[#B45309] rounded space-y-3 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-[#142321] flex items-center gap-1.5">
+                              <Flag className="w-3.5 h-3.5 text-[#B45309]" />
+                              Report an issue with this AI feedback
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setReportingFindingId(null)}
+                              className="text-[#526360] hover:text-[#142321] cursor-pointer"
+                              aria-label="Close report box"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-[#526360] leading-relaxed">
+                            Flag incorrect or outdated AI feedback for administrative review. This logs the issue and alerts brand managers to inspect the rule.
+                          </p>
+                          <div className="space-y-1">
+                            <label className="block text-[#142321] font-medium">Issue type:</label>
+                            <select
+                              value={reportReasonCategory}
+                              onChange={(e) => setReportReasonCategory(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-[#F3EFE6]/70 border border-[#E4DFD3] rounded text-xs cursor-pointer"
+                            >
+                              <option value="Incorrect AI feedback">Incorrect AI feedback (misunderstood content or rule)</option>
+                              <option value="Outdated guideline rule">Outdated guideline rule (rule needs updating in Brand Library)</option>
+                              <option value="False positive">False positive (compliant content was wrongly flagged)</option>
+                              <option value="Irrelevant replacement">Irrelevant or unnatural suggested replacement</option>
+                              <option value="Other issue">Other issue</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <label className="block text-[#142321] font-medium">Details for administrators (optional):</label>
+                            <textarea
+                              rows={2}
+                              value={reportNote}
+                              onChange={(e) => setReportNote(e.target.value)}
+                              placeholder="e.g. This guideline was revised last month, or this wording is permitted on social channels..."
+                              className="w-full px-2.5 py-1.5 bg-[#F3EFE6]/70 border border-[#E4DFD3] rounded text-xs"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 justify-end pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setReportingFindingId(null)}
+                              className="px-2.5 py-1 text-xs text-[#526360] hover:text-[#142321] cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleReportIssue(finding)}
+                              className="px-3 py-1.5 text-xs font-medium text-[#FAF8F4] bg-[#B45309] hover:bg-[#92400E] rounded cursor-pointer inline-flex items-center gap-1.5"
+                            >
+                              <Flag className="w-3 h-3" />
+                              <span>Submit for Administrative Review</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Administrative Review Status Banner */}
+                      {(finding.reportedAsIssue || reportedFindingIds[finding.id]) && (
+                        <div className="mb-3 p-2 bg-[#FEF3C7]/90 border border-[#FDE68A] rounded flex items-start gap-2 text-xs text-[#92400E]">
+                          <Flag className="w-3.5 h-3.5 text-[#B45309] shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-semibold">Flagged for administrative review: </span>
+                            <span>{finding.issueReportReason || reportedFindingIds[finding.id]}</span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Action Footer */}
                       {finding.status === 'open' ? (
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#E4DFD3]"
+                          className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E4DFD3]"
                         >
-                          <button
-                            type="button"
-                            onClick={() => handleApplyFix(finding)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#FAF8F4] bg-[#0B3D3A] hover:bg-[#17806D] rounded transition-colors cursor-pointer"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Accept Fix</span>
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleApplyFix(finding)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#FAF8F4] bg-[#0B3D3A] hover:bg-[#17806D] rounded transition-colors cursor-pointer"
+                              title="Accept this suggestion and update the draft"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Accept Fix</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingFindingId(finding.id);
+                                setCustomFixText(finding.suggestedFix);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0B3D3A] border border-[#0B3D3A]/30 hover:border-[#0B3D3A] rounded transition-colors cursor-pointer"
+                              title="Customize the replacement wording before saving"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Edit Fix</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setDismissingFindingId(finding.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#526360] hover:text-[#991B1B] border border-[#E4DFD3] rounded transition-colors cursor-pointer"
+                              title="Dismiss this finding as an intentional exception"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>Dismiss / Dispute</span>
+                            </button>
+                          </div>
 
                           <button
                             type="button"
                             onClick={() => {
-                              setEditingFindingId(finding.id);
-                              setCustomFixText(finding.suggestedFix);
+                              setReportingFindingId(finding.id);
+                              setReportNote('');
                             }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0B3D3A] border border-[#0B3D3A]/30 hover:border-[#0B3D3A] rounded transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs text-[#526360] hover:text-[#B45309] underline underline-offset-2 transition-colors cursor-pointer ml-auto"
+                            title="Flag incorrect or outdated AI feedback for administrative review"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>Edit Fix</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setDismissingFindingId(finding.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#526360] hover:text-[#991B1B] border border-[#E4DFD3] rounded transition-colors cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                            <span>Dismiss / Dispute</span>
+                            <Flag className="w-3 h-3 text-[#B45309]" />
+                            <span>Report an issue</span>
                           </button>
                         </div>
                       ) : (
-                        <div className="pt-2 border-t border-[#E4DFD3] flex items-center justify-between text-xs font-mono-tabular text-[#17806D]">
+                        <div className="pt-2 border-t border-[#E4DFD3] flex flex-wrap items-center justify-between gap-2 text-xs font-mono-tabular text-[#17806D]">
                           <span>
                             Status: <strong className="uppercase">{finding.status}</strong>
                             {finding.dismissalReason ? ` (${finding.dismissalReason})` : ''}
                           </span>
-                          <span>Recorded in Revision History</span>
+                          <div className="flex items-center gap-3">
+                            <span className="text-[#526360]">Recorded in Revision History</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReportingFindingId(finding.id);
+                                setReportNote('');
+                              }}
+                              className="inline-flex items-center gap-1 text-xs text-[#526360] hover:text-[#B45309] underline underline-offset-2 transition-colors cursor-pointer"
+                              title="Flag incorrect or outdated AI feedback for administrative review"
+                            >
+                              <Flag className="w-3 h-3 text-[#B45309]" />
+                              <span>Report an issue</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

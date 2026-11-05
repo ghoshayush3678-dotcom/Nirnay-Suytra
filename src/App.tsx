@@ -36,7 +36,9 @@ import {
   WorkspaceMemberRecord,
   WorkspaceInviteRecord,
   SignInActivityRecord,
+  ActiveTab,
 } from './types';
+export type { ActiveTab };
 import {
   loadInitialState,
   persistState,
@@ -106,20 +108,6 @@ export type DevPreviewScenario =
   | 'loading-skeleton'
   | 'db-unreachable'
   | 'daily-limit-reached';
-
-export type ActiveTab =
-  | 'landing'
-  | 'auth'
-  | 'autopilot'
-  | 'dashboard'
-  | 'brand-library'
-  | 'review-studio'
-  | 'approvals'
-  | 'revision-history'
-  | 'insights'
-  | 'audit-disclosure'
-  | 'team-access'
-  | 'privacy';
 
 const ROLES: UserRole[] = ['Creator', 'Manager', 'Reviewer', 'Brand Admin'];
 

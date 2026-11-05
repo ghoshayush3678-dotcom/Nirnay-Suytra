@@ -279,6 +279,55 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onEnterWorkspace }) =>
         </div>
       </section>
 
+      {/* 3-Step Strip Right Under Hero: Plain-Language Overview */}
+      <section className="border-b border-[#E4DFD3] bg-[#F3EFE6]/60 py-6">
+        <div className="max-w-[1360px] mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3.5 p-3.5 bg-[#FAF8F4] border border-[#E4DFD3] rounded shadow-2xs">
+              <span className="w-8 h-8 rounded-full bg-[#0B3D3A] text-[#FAF8F4] font-semibold text-xs flex items-center justify-center shrink-0">
+                1
+              </span>
+              <div>
+                <span className="font-semibold text-sm text-[#0B3D3A] block">
+                  1. Add your brand rules
+                </span>
+                <span className="text-xs text-[#526360] leading-snug">
+                  Upload approved guidelines, verified facts, prices, and allowed words.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3.5 p-3.5 bg-[#FAF8F4] border border-[#E4DFD3] rounded shadow-2xs">
+              <span className="w-8 h-8 rounded-full bg-[#17806D] text-[#FAF8F4] font-semibold text-xs flex items-center justify-center shrink-0">
+                2
+              </span>
+              <div>
+                <span className="font-semibold text-sm text-[#0B3D3A] block">
+                  2. Check your content
+                </span>
+                <span className="text-xs text-[#526360] leading-snug">
+                  AI scans claims and tone, citing the exact rule broken before publication.
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3.5 p-3.5 bg-[#FAF8F4] border border-[#E4DFD3] rounded shadow-2xs">
+              <span className="w-8 h-8 rounded-full bg-[#B45309] text-[#FAF8F4] font-semibold text-xs flex items-center justify-center shrink-0">
+                3
+              </span>
+              <div>
+                <span className="font-semibold text-sm text-[#0B3D3A] block">
+                  3. Review and approve
+                </span>
+                <span className="text-xs text-[#526360] leading-snug">
+                  Writers accept or edit fixes, then human reviewers give final sign-off.
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 2. How It Works (4 Numbered Steps + Interactive Real UI Inspector) */}
       <section id="how-it-works" className="border-b border-[#E4DFD3] py-16 lg:py-24">
         <div className="max-w-[1360px] mx-auto px-6">

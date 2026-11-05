@@ -235,7 +235,23 @@ export interface Finding {
   riskBand?: RiskBand;
   riskFactors?: string[];
   autoAppliedByAutopilot?: boolean;
+  reportedAsIssue?: boolean;
+  issueReportReason?: string;
 }
+
+export type ActiveTab =
+  | 'landing'
+  | 'auth'
+  | 'autopilot'
+  | 'dashboard'
+  | 'brand-library'
+  | 'review-studio'
+  | 'approvals'
+  | 'revision-history'
+  | 'insights'
+  | 'audit-disclosure'
+  | 'team-access'
+  | 'privacy';
 
 export interface DiscardedFindingTrace {
   quotedText: string;
