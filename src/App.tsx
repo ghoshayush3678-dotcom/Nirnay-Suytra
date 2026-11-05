@@ -21,6 +21,9 @@ import {
   Building2,
   Sparkles,
   Clock,
+  HelpCircle,
+  MoreHorizontal,
+  Compass,
 } from 'lucide-react';
 import {
   BrandLibraryState,
@@ -88,6 +91,7 @@ import {
   DailyQuotaReachedState,
 } from './components/EditorialEmptyStates';
 import { ThemeToggle } from './components/ThemeToggle';
+import { HelpAndTourModal } from './components/HelpAndTourModal';
 
 export type DevPreviewScenario =
   | 'normal'
@@ -119,51 +123,137 @@ export type ActiveTab =
 
 const ROLES: UserRole[] = ['Creator', 'Manager', 'Reviewer', 'Brand Admin'];
 
-const ROUTE_PERMISSIONS: Record<
+export const ROUTE_PERMISSIONS: Record<
   ActiveTab,
-  { label: string; allowedRoles: UserRole[] }
+  { label: string; plainDescription: string; allowedRoles: UserRole[] }
 > = {
-  landing: { label: 'Landing Page', allowedRoles: ROLES },
-  auth: { label: 'Sign In & Sign Up', allowedRoles: ROLES },
-  autopilot: {
-    label: 'Autopilot Center',
-    allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
+  landing: {
+    label: 'Overview',
+    plainDescription: 'Learn how brand rules, AI checks, and human sign-off work together.',
+    allowedRoles: ROLES,
+  },
+  auth: {
+    label: 'Sign In',
+    plainDescription: 'Sign in to your team workspace or explore the demo mode.',
+    allowedRoles: ROLES,
   },
   dashboard: {
-    label: 'Dashboard',
-    allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
+    label: 'Home',
+    plainDescription: 'See all drafts and follow your role checklist to see what to do next.',
+    allowedRoles: ROLES,
   },
   'review-studio': {
-    label: 'Review Studio',
-    allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
-  },
-  'brand-library': {
-    label: 'Brand Library',
-    allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
+    label: 'Check content',
+    plainDescription: 'Paste your draft or banner image to check it against approved brand rules.',
+    allowedRoles: ROLES,
   },
   approvals: {
-    label: 'Approvals & Exception Queue',
+    label: 'Needs approval',
+    plainDescription: 'Review drafts waiting for human sign-off and resolve items that need a person.',
+    allowedRoles: ROLES,
+  },
+  'brand-library': {
+    label: 'Brand rules',
+    plainDescription: 'Keep all your verified guidelines, facts, and approved terms in one place.',
+    allowedRoles: ROLES,
+  },
+  'team-access': {
+    label: 'Team',
+    plainDescription: 'Manage who has access to this workspace and what role they have.',
+    allowedRoles: ['Brand Admin'],
+  },
+  autopilot: {
+    label: 'Autopilot settings',
+    plainDescription: 'Control how safely the automatic approval checker runs for your brand.',
     allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
   },
   'revision-history': {
-    label: 'Revision History',
+    label: 'Past versions',
+    plainDescription: 'Compare earlier versions of a draft with side-by-side text diffs.',
     allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
   },
   insights: {
-    label: 'Team & Guideline Insights',
+    label: 'Patterns and tips',
+    plainDescription: 'See which brand rules get broken most often so your team can improve.',
     allowedRoles: ['Manager', 'Reviewer', 'Brand Admin'],
   },
   'audit-disclosure': {
-    label: 'Audit & AI Disclosure Log',
+    label: 'Activity history',
+    plainDescription: 'A permanent, unchangeable record of every check, edit, and human decision.',
     allowedRoles: ['Manager', 'Reviewer', 'Brand Admin'],
   },
-  'team-access': {
-    label: 'Team & Access Governance',
-    allowedRoles: ['Brand Admin'],
-  },
   privacy: {
-    label: 'Privacy & Data Governance',
+    label: 'Privacy & data',
+    plainDescription: 'Understand how your content stays private and manage your local data.',
     allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
+  },
+};
+
+interface RoleNavItem {
+  id: ActiveTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const ROLE_NAVIGATION: Record<UserRole, { primary: RoleNavItem[]; more: RoleNavItem[] }> = {
+  Creator: {
+    primary: [
+      { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+      { id: 'review-studio', label: 'Check content', icon: FileSearch },
+      { id: 'approvals', label: 'Needs approval', icon: CheckSquare },
+      { id: 'brand-library', label: 'Brand rules', icon: BookOpen },
+    ],
+    more: [
+      { id: 'revision-history', label: 'Past versions', icon: GitCompare },
+      { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
+      { id: 'privacy', label: 'Privacy & data', icon: Lock },
+    ],
+  },
+  Reviewer: {
+    primary: [
+      { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+      { id: 'approvals', label: 'Needs approval', icon: CheckSquare },
+      { id: 'review-studio', label: 'Check content', icon: FileSearch },
+      { id: 'brand-library', label: 'Brand rules', icon: BookOpen },
+    ],
+    more: [
+      { id: 'insights', label: 'Patterns and tips', icon: BarChart3 },
+      { id: 'audit-disclosure', label: 'Activity history', icon: ShieldCheck },
+      { id: 'revision-history', label: 'Past versions', icon: GitCompare },
+      { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
+      { id: 'privacy', label: 'Privacy & data', icon: Lock },
+    ],
+  },
+  Manager: {
+    primary: [
+      { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+      { id: 'review-studio', label: 'Check content', icon: FileSearch },
+      { id: 'approvals', label: 'Needs approval', icon: CheckSquare },
+      { id: 'brand-library', label: 'Brand rules', icon: BookOpen },
+    ],
+    more: [
+      { id: 'insights', label: 'Patterns and tips', icon: BarChart3 },
+      { id: 'audit-disclosure', label: 'Activity history', icon: ShieldCheck },
+      { id: 'revision-history', label: 'Past versions', icon: GitCompare },
+      { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
+      { id: 'privacy', label: 'Privacy & data', icon: Lock },
+    ],
+  },
+  'Brand Admin': {
+    primary: [
+      { id: 'dashboard', label: 'Home', icon: LayoutDashboard },
+      { id: 'review-studio', label: 'Check content', icon: FileSearch },
+      { id: 'approvals', label: 'Needs approval', icon: CheckSquare },
+      { id: 'brand-library', label: 'Brand rules', icon: BookOpen },
+      { id: 'team-access', label: 'Team', icon: Users },
+    ],
+    more: [
+      { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
+      { id: 'audit-disclosure', label: 'Activity history', icon: ShieldCheck },
+      { id: 'insights', label: 'Patterns and tips', icon: BarChart3 },
+      { id: 'revision-history', label: 'Past versions', icon: GitCompare },
+      { id: 'privacy', label: 'Privacy & data', icon: Lock },
+    ],
   },
 };
 
@@ -237,6 +327,19 @@ export default function App() {
   // Hidden developer toggle (visible only in demo mode) to preview every state
   const [devPreview, setDevPreview] = useState<DevPreviewScenario>('normal');
   const [devToggleExpanded, setDevToggleExpanded] = useState(false);
+
+  // Help Modal, 4-Step Tour, and Plain Glossary State
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [helpModalView, setHelpModalView] = useState<'help' | 'tour' | 'glossary'>('help');
+  const [showWelcomeTourBanner, setShowWelcomeTourBanner] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('nirnay_tour_completed') !== 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
 
   // Active effective role (derived from authenticated profile, or Brand Admin fallback)
   const activeRole: UserRole =
@@ -1428,38 +1531,7 @@ export default function App() {
   // ---------------------------------------------------------------------------
   // 3. Authenticated / Demo Sandbox Workspace Shell
   // ---------------------------------------------------------------------------
-  const navItems: Array<{
-    id: ActiveTab;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    restrictedTo?: UserRole[];
-  }> = [
-    { id: 'autopilot', label: 'Autopilot Center', icon: Zap },
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'review-studio', label: 'Review Studio', icon: FileSearch },
-    { id: 'brand-library', label: 'Brand Library', icon: BookOpen },
-    { id: 'approvals', label: 'Approvals', icon: CheckSquare },
-    { id: 'revision-history', label: 'Revision History', icon: GitCompare },
-    {
-      id: 'insights',
-      label: 'Insights',
-      icon: BarChart3,
-      restrictedTo: ['Manager', 'Reviewer', 'Brand Admin'],
-    },
-    {
-      id: 'audit-disclosure',
-      label: 'Audit & AI Disclosure',
-      icon: ShieldCheck,
-      restrictedTo: ['Manager', 'Reviewer', 'Brand Admin'],
-    },
-    {
-      id: 'team-access',
-      label: 'Team & Access',
-      icon: Users,
-      restrictedTo: ['Brand Admin'],
-    },
-    { id: 'privacy', label: 'Privacy & Data Rights', icon: Lock },
-  ];
+  const roleNav = ROLE_NAVIGATION[activeRole] || ROLE_NAVIGATION.Creator;
 
   const openFindingsCount = effectiveItems.reduce(
     (acc, it) => acc + it.findings.filter((f) => f.status === 'open').length,
@@ -1695,13 +1767,11 @@ export default function App() {
               </p>
             </div>
 
-            {/* Primary Workspace Nav Links */}
+            {/* Role-Specific Navigation (At most 5 plain items per role) */}
             <nav className="p-3 flex lg:flex-col gap-1 overflow-x-auto">
-              {navItems.map((item) => {
+              {roleNav.primary.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
-                const isRestrictedForCurrentRole =
-                  item.restrictedTo && !item.restrictedTo.includes(activeRole);
 
                 return (
                   <button
@@ -1710,14 +1780,19 @@ export default function App() {
                     onClick={() => navigateToTab(item.id)}
                     className={`flex items-center justify-between gap-2 px-3.5 py-2.5 rounded text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                       isActive
-                        ? 'bg-[#0B3D3A] text-[#FAF8F4]'
-                        : 'text-[#364946] hover:bg-[#FAF8F4] hover:text-[#0B3D3A]'
+                        ? 'bg-[#0B3D3A] text-[#FAF8F4] dark:bg-[#17806D] font-semibold'
+                        : 'text-[#364946] dark:text-[#A3B8B4] hover:bg-[#FAF8F4] dark:hover:bg-[#18302D] hover:text-[#0B3D3A] dark:hover:text-[#7FD1BF]'
                     }`}
                   >
                     <span className="flex items-center gap-2.5">
                       <Icon className="w-4 h-4 shrink-0" />
                       <span>{item.label}</span>
                     </span>
+                    {item.id === 'approvals' && openFindingsCount > 0 && (
+                      <span className="px-1.5 py-0.5 text-[10px] font-mono-tabular rounded bg-[#F5A524] text-[#142321] font-semibold">
+                        {openFindingsCount}
+                      </span>
+                    )}
                     {item.id === 'team-access' &&
                       activeRole === 'Brand Admin' &&
                       pendingApprovalsCount > 0 && (
@@ -1725,15 +1800,70 @@ export default function App() {
                           {pendingApprovalsCount}
                         </span>
                       )}
-                    {isRestrictedForCurrentRole && (
-                      <Lock
-                        className="w-3 h-3 text-[#526360] shrink-0"
-                        aria-label="Restricted route"
-                      />
-                    )}
                   </button>
                 );
               })}
+
+              {/* Advanced Pages Under "More" */}
+              {roleNav.more.length > 0 && (
+                <div className="pt-2 mt-2 border-t border-[#E4DFD3] dark:border-[#1F3834]">
+                  <button
+                    type="button"
+                    onClick={() => setMoreMenuOpen((prev) => !prev)}
+                    className={`w-full flex items-center justify-between px-3.5 py-2 rounded text-xs font-medium transition-colors cursor-pointer ${
+                      roleNav.more.some((m) => m.id === activeTab)
+                        ? 'bg-[#F3EFE6] dark:bg-[#18302D] text-[#0B3D3A] dark:text-[#7FD1BF] font-semibold'
+                        : 'text-[#526360] dark:text-[#9BB0AC] hover:bg-[#FAF8F4] dark:hover:bg-[#18302D]'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <MoreHorizontal className="w-4 h-4 shrink-0" />
+                      <span>More pages</span>
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 transition-transform ${moreMenuOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {(moreMenuOpen || roleNav.more.some((m) => m.id === activeTab)) && (
+                    <div className="pl-3 pr-1 pt-1 space-y-1">
+                      {roleNav.more.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = activeTab === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => navigateToTab(item.id)}
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
+                              isActive
+                                ? 'bg-[#0B3D3A] text-[#FAF8F4] dark:bg-[#17806D] font-semibold'
+                                : 'text-[#526360] dark:text-[#9BB0AC] hover:bg-[#FAF8F4] dark:hover:bg-[#18302D] hover:text-[#0B3D3A] dark:hover:text-[#7FD1BF]'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2 truncate">
+                              <Icon className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{item.label}</span>
+                            </span>
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHelpModalView('glossary');
+                          setHelpModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded text-xs font-medium text-[#17806D] dark:text-[#2DD4BF] hover:bg-[#FAF8F4] dark:hover:bg-[#18302D] cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                        <span>Plain glossary</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </nav>
           </div>
 
@@ -1778,27 +1908,47 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Contextual Top Bar with Global Pause Autopilot Kill Switch & Account Menu */}
           <header className="bg-[#FAF8F4] border-b border-[#E4DFD3] px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2 text-xs text-[#526360] truncate">
-              <span className="font-medium text-[#0B3D3A]">
-                {fallbackWorkspace.name}
-              </span>
-              <span aria-hidden="true">/</span>
-              <span className="text-[#142321] font-medium">
-                {navItems.find((n) => n.id === activeTab)?.label ||
-                  currentRouteMeta?.label}
-              </span>
-              <span aria-hidden="true" className="hidden sm:inline">
-                ·
-              </span>
-              <span className="hidden sm:inline font-mono-tabular text-[#17806D]">
-                Autopilot:{' '}
-                {library.autopilotConfig.killSwitchPaused
-                  ? 'PAUSED'
-                  : library.autopilotConfig.mode}
-              </span>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-2 text-xs text-[#526360] truncate">
+                <span className="font-semibold text-[#0B3D3A]">
+                  {fallbackWorkspace.name}
+                </span>
+                <span aria-hidden="true">/</span>
+                <span className="text-[#142321] font-semibold">
+                  {currentRouteMeta?.label}
+                </span>
+                <span aria-hidden="true" className="hidden sm:inline">
+                  ·
+                </span>
+                <span className="hidden sm:inline font-mono-tabular text-[#17806D]">
+                  Autopilot:{' '}
+                  {library.autopilotConfig.killSwitchPaused
+                    ? 'PAUSED'
+                    : library.autopilotConfig.mode}
+                </span>
+              </div>
+              {currentRouteMeta?.plainDescription && (
+                <p className="text-xs text-[#526360] mt-0.5 hidden md:block truncate">
+                  {currentRouteMeta.plainDescription}
+                </p>
+              )}
             </div>
 
             <div className="flex items-center gap-2.5 shrink-0">
+              {/* Help & Plain Glossary Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setHelpModalView('help');
+                  setHelpModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-[#E4DFD3] bg-white text-[#0B3D3A] hover:bg-[#F3EFE6] transition-colors cursor-pointer"
+                title="How this page works, tour, and plain glossary"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-[#17806D]" />
+                <span>Help</span>
+              </button>
+
               {/* Global Pause Autopilot Kill Switch */}
               <button
                 type="button"
@@ -1978,7 +2128,33 @@ export default function App() {
                         className="w-full px-2.5 py-1.5 rounded text-left hover:bg-[#F3EFE6] text-[#142321] flex items-center gap-2 cursor-pointer"
                       >
                         <Lock className="w-3.5 h-3.5 text-[#17806D]" />
-                        <span>Privacy &amp; Data Governance</span>
+                        <span>Privacy &amp; Data</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          setHelpModalView('tour');
+                          setHelpModalOpen(true);
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded text-left hover:bg-[#F3EFE6] text-[#142321] flex items-center gap-2 cursor-pointer"
+                      >
+                        <Compass className="w-3.5 h-3.5 text-[#17806D]" />
+                        <span>Show beginner tour again</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          setHelpModalView('glossary');
+                          setHelpModalOpen(true);
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded text-left hover:bg-[#F3EFE6] text-[#142321] flex items-center gap-2 cursor-pointer"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 text-[#17806D]" />
+                        <span>Plain glossary</span>
                       </button>
                     </div>
 
@@ -2043,6 +2219,42 @@ export default function App() {
               </div>
             </div>
           </header>
+
+          {/* Welcome Guided Tour Banner (dismissible) */}
+          {showWelcomeTourBanner && (
+            <div className="bg-[#17806D]/15 dark:bg-[#2DD4BF]/15 border-b border-[#17806D]/30 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2 text-[#0B3D3A] dark:text-[#7FD1BF]">
+                <Sparkles className="w-4 h-4 text-[#17806D] dark:text-[#2DD4BF] shrink-0" />
+                <span>
+                  <strong>New to Nirnay Sutra?</strong> Take the 1-minute tour to see how brand rules, AI checks, and human approvals work.
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHelpModalView('tour');
+                    setHelpModalOpen(true);
+                  }}
+                  className="font-medium text-[#17806D] dark:text-[#2DD4BF] hover:underline cursor-pointer"
+                >
+                  Take 1-minute tour &rarr;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      localStorage.setItem('nirnay_tour_completed', 'true');
+                    } catch {}
+                    setShowWelcomeTourBanner(false);
+                  }}
+                  className="text-[#526360] dark:text-[#9BB0AC] hover:text-[#0B3D3A] dark:hover:text-[#F4F7F6] text-xs cursor-pointer"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Active View Viewport (with Connection, Quota, Loading, Checklist & Route Guard checks) */}
           <main className="flex-1 p-6 lg:p-10 max-w-[1280px] w-full mx-auto space-y-8">
@@ -2421,13 +2633,23 @@ export default function App() {
                 className="px-4 py-2 text-xs font-medium text-[#FAF8F4] bg-[#0B3D3A] hover:bg-[#17806D] rounded cursor-pointer"
               >
                 {isAutopilotRunning
-                  ? 'Submit & Run Zero-Click Autopilot'
-                  : 'Create & Open in Review Studio'}
+                  ? 'Check with Autopilot'
+                  : 'Create draft & check content'}
               </button>
             </div>
           </form>
         </div>
       )}
+
+      {/* Global Plain-Language Help, 4-Step Tour, & Glossary Modal */}
+      <HelpAndTourModal
+        isOpen={helpModalOpen}
+        onClose={() => setHelpModalOpen(false)}
+        activeTab={activeTab}
+        activeRole={activeRole}
+        initialView={helpModalView}
+        onNavigateToTab={navigateToTab}
+      />
     </div>
   );
 }
