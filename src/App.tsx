@@ -24,6 +24,8 @@ import {
   HelpCircle,
   MoreHorizontal,
   Compass,
+  Activity,
+  FlaskConical,
 } from 'lucide-react';
 import {
   BrandLibraryState,
@@ -94,6 +96,8 @@ import {
 } from './components/EditorialEmptyStates';
 import { ThemeToggle } from './components/ThemeToggle';
 import { HelpAndTourModal } from './components/HelpAndTourModal';
+import { StatusView } from './components/StatusView';
+import { AccuracyLabView } from './components/AccuracyLabView';
 
 export type DevPreviewScenario =
   | 'normal'
@@ -175,6 +179,16 @@ export const ROUTE_PERMISSIONS: Record<
     plainDescription: 'Understand how your content stays private and manage your local data.',
     allowedRoles: ['Creator', 'Manager', 'Reviewer', 'Brand Admin'],
   },
+  status: {
+    label: 'System status',
+    plainDescription: 'Check whether Firebase, database, AI quota, and build keys are connected.',
+    allowedRoles: ROLES,
+  },
+  'accuracy-lab': {
+    label: 'Accuracy Lab',
+    plainDescription: 'Test the brand checker against 12 known-error cases to measure honest accuracy.',
+    allowedRoles: ROLES,
+  },
 };
 
 interface RoleNavItem {
@@ -192,9 +206,11 @@ const ROLE_NAVIGATION: Record<UserRole, { primary: RoleNavItem[]; more: RoleNavI
       { id: 'brand-library', label: 'Brand rules', icon: BookOpen },
     ],
     more: [
+      { id: 'accuracy-lab', label: 'Accuracy Lab', icon: FlaskConical },
       { id: 'revision-history', label: 'Past versions', icon: GitCompare },
       { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
       { id: 'privacy', label: 'Privacy & data', icon: Lock },
+      { id: 'status', label: 'System status', icon: Activity },
     ],
   },
   Reviewer: {
@@ -206,10 +222,12 @@ const ROLE_NAVIGATION: Record<UserRole, { primary: RoleNavItem[]; more: RoleNavI
     ],
     more: [
       { id: 'insights', label: 'Patterns and tips', icon: BarChart3 },
+      { id: 'accuracy-lab', label: 'Accuracy Lab', icon: FlaskConical },
       { id: 'audit-disclosure', label: 'Activity history', icon: ShieldCheck },
       { id: 'revision-history', label: 'Past versions', icon: GitCompare },
       { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
       { id: 'privacy', label: 'Privacy & data', icon: Lock },
+      { id: 'status', label: 'System status', icon: Activity },
     ],
   },
   Manager: {
@@ -221,10 +239,12 @@ const ROLE_NAVIGATION: Record<UserRole, { primary: RoleNavItem[]; more: RoleNavI
     ],
     more: [
       { id: 'insights', label: 'Patterns and tips', icon: BarChart3 },
+      { id: 'accuracy-lab', label: 'Accuracy Lab', icon: FlaskConical },
       { id: 'audit-disclosure', label: 'Activity history', icon: ShieldCheck },
       { id: 'revision-history', label: 'Past versions', icon: GitCompare },
       { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
       { id: 'privacy', label: 'Privacy & data', icon: Lock },
+      { id: 'status', label: 'System status', icon: Activity },
     ],
   },
   'Brand Admin': {
@@ -236,11 +256,13 @@ const ROLE_NAVIGATION: Record<UserRole, { primary: RoleNavItem[]; more: RoleNavI
       { id: 'team-access', label: 'Team', icon: Users },
     ],
     more: [
+      { id: 'accuracy-lab', label: 'Accuracy Lab', icon: FlaskConical },
       { id: 'autopilot', label: 'Autopilot settings', icon: Zap },
       { id: 'audit-disclosure', label: 'Activity history', icon: ShieldCheck },
       { id: 'insights', label: 'Patterns and tips', icon: BarChart3 },
       { id: 'revision-history', label: 'Past versions', icon: GitCompare },
       { id: 'privacy', label: 'Privacy & data', icon: Lock },
+      { id: 'status', label: 'System status', icon: Activity },
     ],
   },
 };
@@ -2492,9 +2514,53 @@ export default function App() {
                     onDeleteAccountAndData={handleDeleteMyAccount}
                   />
                 )}
+
+                {activeTab === 'accuracy-lab' && (
+                  <AccuracyLabView
+                    library={effectiveLibrary}
+                    onOpenStudio={(id) => {
+                      if (id) setSelectedItemId(id);
+                      navigateToTab('review-studio');
+                    }}
+                  />
+                )}
+
+                {activeTab === 'status' && (
+                  <StatusView
+                    library={effectiveLibrary}
+                    items={effectiveItems}
+                    onResetToSeedData={handleResetAll}
+                  />
+                )}
               </>
             )}
           </main>
+
+          {/* Static App Footer with Build SHA & Date */}
+          <footer className="border-t border-[#E4DFD3] bg-[#FAF8F4]/80 px-6 py-3 flex flex-wrap items-center justify-between text-[11px] text-[#526360] font-mono-tabular">
+            <div>
+              <span>Build: <strong className="text-[#0B3D3A]">{((import.meta as any).env?.VITE_BUILD_SHA || 'dev-local').slice(0, 7)}</strong> · 2026-11-05</span>
+              <span aria-hidden="true" className="mx-2">·</span>
+              <span>Client-side Pure Static Build (GitHub Pages)</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigateToTab('status')}
+                className="hover:underline text-[#17806D] cursor-pointer"
+              >
+                Status Diagnostic
+              </button>
+              <span aria-hidden="true">·</span>
+              <button
+                type="button"
+                onClick={() => navigateToTab('accuracy-lab')}
+                className="hover:underline text-[#17806D] cursor-pointer"
+              >
+                Accuracy Lab (12 Cases)
+              </button>
+            </div>
+          </footer>
         </div>
       </div>
 

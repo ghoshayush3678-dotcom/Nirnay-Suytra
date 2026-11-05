@@ -116,3 +116,17 @@ The repository uses only free-tier Firebase services (**Firebase Authentication*
 ```bash
 firebase deploy --only firestore:rules
 ```
+
+---
+
+## Nirnay Sutra Signature Governance Features
+
+1. **Proof Receipt (Tamper-Evident Record)**: Computes a Web Crypto SHA-256 hash of final approved text, lists brand sources checked with verification dates, logs finding resolutions, attributes AI vs human changes, and includes an interactive "Verify receipt" re-computation tool with print/PDF styling. Label: *"Shows the content has not changed since approval."*
+2. **Intent Lock**: Creators define core messages, up to 3 must-keep points, and CTA. Every suggested fix receives an *"Intent kept"* or *"Intent at risk"* badge. Fixes marked "Intent at risk" are **never auto-applied in Autopilot**.
+3. **Claim Ledger**: Structured table extracting claims, matching approved facts, assigning status (`Supported`, `Outdated`, `Unsupported`, `Needs an expert`), with Admin topic policies (health, legal, price, safety) and a "Fix the ledger" button using approved facts only.
+4. **Guideline Health**: 0-100 quality scores per guideline/fact computed from age, dispute frequency, and pairwise conflict detection comparing contradictory rules side-by-side with quotes.
+5. **Injection Shield & Privacy Preview**: Treats draft text as untrusted data; detects prompt injection instructions without obeying them. Pre-flight preview displays exact text with automated email, phone number, and confidential token redaction.
+6. **Hindi & Hinglish Support**: Rules and glossary can be specified and checked across English, हिन्दी (Devanagari), and Hinglish, preserving verbatim quotes and tone guidelines.
+7. **Accuracy Lab (`#/accuracy-lab`)**: 12 concrete benchmark test cases with known ground truth evaluating true positives, false negatives, false positives, and citation grounding rates honestly with JSON/CSV export.
+8. **Consistency Score ("Brand Fit")**: 0 to 100 score across 5 pillars (Tone, Words, Claims, Visuals, Accessibility) displayed with plain calculations and workspace trend history.
+9. **Status Page (`#/status`)**: Live diagnostics of Firebase Auth, Cloud Firestore connection, environment variables (without revealing secret values), build SHA, and daily AI quota.

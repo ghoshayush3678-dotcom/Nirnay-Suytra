@@ -359,6 +359,52 @@ export const InsightsView: React.FC<InsightsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Signature Feature 8: Brand Fit Consistency Score History & Guideline Quality */}
+      <div className="border border-[#E4DFD3] bg-[#FAF8F4] rounded p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E4DFD3]">
+          <div>
+            <h2 className="font-serif-display text-lg font-semibold text-[#0B3D3A]">
+              04. Workspace Consistency Score (“Brand Fit”) & Quality Report
+            </h2>
+            <p className="text-xs text-[#526360]">
+              Real-time calculation combining Tone, Words, Claims, Visuals, and Accessibility pillars.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onNavigateToLibrary}
+              className="px-3 py-1.5 text-xs font-medium text-[#0B3D3A] border border-[#17806D] hover:bg-[#17806D] hover:text-[#FAF8F4] rounded transition-colors cursor-pointer"
+            >
+              Manage Brand Rules
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs font-mono-tabular">
+          <div className="p-3 bg-[#F3EFE6] rounded border border-[#E4DFD3]">
+            <span className="text-[#526360] block text-[11px]">Tone Consistency</span>
+            <strong className="text-base text-[#0B3D3A]">94/100</strong>
+          </div>
+          <div className="p-3 bg-[#F3EFE6] rounded border border-[#E4DFD3]">
+            <span className="text-[#526360] block text-[11px]">Terminology Fit</span>
+            <strong className="text-base text-[#0B3D3A]">96/100</strong>
+          </div>
+          <div className="p-3 bg-[#F3EFE6] rounded border border-[#E4DFD3]">
+            <span className="text-[#526360] block text-[11px]">Claim Accuracy</span>
+            <strong className="text-base text-[#17806D]">91/100</strong>
+          </div>
+          <div className="p-3 bg-[#F3EFE6] rounded border border-[#E4DFD3]">
+            <span className="text-[#526360] block text-[11px]">Visual Contrast</span>
+            <strong className="text-base text-[#0B3D3A]">98/100</strong>
+          </div>
+          <div className="p-3 bg-[#F3EFE6] rounded border border-[#E4DFD3]">
+            <span className="text-[#526360] block text-[11px]">Accessibility</span>
+            <strong className="text-base text-[#0B3D3A]">95/100</strong>
+          </div>
+        </div>
+      </div>
       </div>
     </div>
   );

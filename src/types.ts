@@ -151,6 +151,16 @@ export interface AutopilotActionRecord {
   aiDisclosureText: string;
 }
 
+export type SupportedLanguage = 'en' | 'hi' | 'hinglish';
+
+export interface GuidelineConflict {
+  otherGuidelineId: string;
+  otherGuidelineTitle: string;
+  thisQuote: string;
+  otherQuote: string;
+  reason: string;
+}
+
 export interface GuidelineItem {
   id: string;
   code: string;
@@ -163,6 +173,9 @@ export interface GuidelineItem {
   updatedAt: string;
   flaggedCount: number;
   disputedCount: number;
+  healthScore?: number; // 0 to 100 calculated from age, disputes, and conflicts
+  conflictsDetected?: GuidelineConflict[];
+  language?: SupportedLanguage;
 }
 
 export interface ApprovedFactItem {
@@ -174,6 +187,9 @@ export interface ApprovedFactItem {
   lastVerified: string;
   verifiedBy: string;
   confidential: boolean;
+  healthScore?: number;
+  requiresExpertTopic?: boolean;
+  language?: SupportedLanguage;
 }
 
 export interface TerminologyItem {
@@ -183,6 +199,7 @@ export interface TerminologyItem {
   reason: string;
   category: FindingCategory;
   confidential: boolean;
+  language?: SupportedLanguage;
 }
 
 export interface BrandColourSwatch {
@@ -214,6 +231,133 @@ export interface RetrievedPassage {
   confidential: boolean;
 }
 
+export interface IntentLockConfig {
+  coreMessage: string;
+  mustKeepPoints: string[]; // up to 3 must-keep points
+  callToAction: string;
+}
+
+export interface IntentCheckResult {
+  status: 'kept' | 'at_risk';
+  reason: string;
+}
+
+export type ClaimStatus = 'Supported' | 'Outdated' | 'Unsupported' | 'Needs an expert';
+export type ClaimTopic = 'health' | 'legal' | 'price' | 'safety' | 'clinical' | 'environmental' | 'general';
+
+export interface ClaimLedgerEntry {
+  id: string;
+  claimText: string;
+  topic: ClaimTopic;
+  matchedFactId?: string;
+  matchedFactStatement?: string;
+  status: ClaimStatus;
+  reason: string;
+  suggestedWording?: string;
+  requiresExpertReview?: boolean;
+}
+
+export interface BrandFitBreakdown {
+  overall: number; // 0 to 100
+  tone: number; // 0 to 20
+  words: number; // 0 to 20
+  claims: number; // 0 to 20
+  visuals: number; // 0 to 20
+  accessibility: number; // 0 to 20
+  explanation: string;
+  computedAt: string;
+}
+
+export interface ProofReceiptSourceRef {
+  sourceId: string;
+  sourceTitle: string;
+  sourceType: string;
+  lastVerified: string;
+}
+
+export interface ProofReceiptFindingDiff {
+  findingId: string;
+  category: string;
+  quotedText: string;
+  suggestedFix: string;
+  outcome: 'accepted' | 'edited' | 'dismissed';
+  appliedText?: string;
+  changeAuthor: 'AI' | 'Person' | 'Unchanged';
+  sourceId: string;
+  sourceTitle: string;
+}
+
+export interface ProofReceipt {
+  receiptId: string;
+  contentId: string;
+  contentTitle: string;
+  finalContentText: string;
+  finalSha256Hash: string;
+  approvedAt: string;
+  approvedBy: string;
+  approvedByRole: UserRole;
+  sourcesChecked: ProofReceiptSourceRef[];
+  findingsLog: ProofReceiptFindingDiff[];
+  aiServiceUsed: string;
+  changesAttribution: {
+    aiChangedCount: number;
+    personChangedCount: number;
+    dismissedCount: number;
+  };
+  watermarkNote: string; // "Shows the content has not changed since approval."
+}
+
+export interface BenchmarkTestCase {
+  id: string;
+  title: string;
+  category:
+    | 'pesticide_claim'
+    | 'outdated_price'
+    | 'ungrounded_yield'
+    | 'distorted_logo'
+    | 'poor_contrast'
+    | 'tone_slang'
+    | 'missing_alt'
+    | 'prompt_injection'
+    | 'hindi_claim'
+    | 'hinglish_pricing'
+    | 'clinical_unsupported'
+    | 'clean_compliant';
+  language: SupportedLanguage;
+  draftText: string;
+  knownErrorsCount: number;
+  knownErrorDescriptions: string[];
+  hasInjection?: boolean;
+  groundTruthSourceIds: string[];
+}
+
+export interface BenchmarkRunReport {
+  runAt: string;
+  modelUsed: string;
+  totalTestCases: number;
+  truePositives: number;
+  falseNegatives: number;
+  falsePositives: number;
+  groundedRatePercent: number;
+  accuracyPercent: number;
+  offlineRuleFallbackUsed: boolean;
+  testCaseDetails: Array<{
+    testCaseId: string;
+    testCaseTitle: string;
+    expectedErrors: number;
+    detectedErrors: number;
+    missed: number;
+    wrongFlags: number;
+    findings: Finding[];
+  }>;
+}
+
+export interface InjectionShieldCheckResult {
+  suspiciousFound: boolean;
+  detectedPhrases: string[];
+  warningMessage?: string;
+}
+
 export interface Finding {
   id: string;
   category: FindingCategory;
@@ -237,6 +381,8 @@ export interface Finding {
   autoAppliedByAutopilot?: boolean;
   reportedAsIssue?: boolean;
   issueReportReason?: string;
+  intentCheck?: IntentCheckResult;
+  language?: SupportedLanguage;
 }
 
 export type ActiveTab =
@@ -251,7 +397,9 @@ export type ActiveTab =
   | 'insights'
   | 'audit-disclosure'
   | 'team-access'
-  | 'privacy';
+  | 'privacy'
+  | 'status'
+  | 'accuracy-lab';
 
 export interface DiscardedFindingTrace {
   quotedText: string;
@@ -330,6 +478,13 @@ export interface ContentItem {
   rolledBack?: boolean;
   maxRiskScore?: number;
   autopilotAction?: AutopilotActionRecord;
+  // Signature features
+  intentLock?: IntentLockConfig;
+  brandFitScore?: BrandFitBreakdown;
+  proofReceipt?: ProofReceipt;
+  claimLedger?: ClaimLedgerEntry[];
+  language?: SupportedLanguage;
+  injectionShield?: InjectionShieldCheckResult;
 }
 
 export type AuditEventType =
@@ -345,6 +500,8 @@ export type AuditEventType =
   | 'ROLE_CHANGE'
   | 'ROLE_APPROVAL'
   | 'INVITE_GENERATED'
+  | 'PROOF_RECEIPT_GENERATED'
+  | 'INJECTION_DETECTED'
   | 'ACCOUNT_DELETION';
 
 export interface AuditLogEntry {

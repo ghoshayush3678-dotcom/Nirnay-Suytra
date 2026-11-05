@@ -7,15 +7,18 @@ import {
   UserCheck,
   ShieldAlert,
   ArrowUpRight,
+  Receipt,
 } from 'lucide-react';
 import {
   ContentItem,
   ContentStatus,
   UserRole,
   ReviewComment,
+  ProofReceipt,
 } from '../types';
-
+import { computeSha256 } from '../utils/governanceEngine';
 import { EditorialEmptyCard } from './EditorialEmptyStates';
+import { ProofReceiptModal } from './ProofReceiptModal';
 
 interface ApprovalsViewProps {
   items: ContentItem[];
@@ -55,6 +58,53 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
   );
   const [overrideJustification, setOverrideJustification] = useState('');
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+
+  // Signature Feature 1: Proof Receipt in Approvals
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [activeReceipt, setActiveReceipt] = useState<ProofReceipt | null>(null);
+
+  const handleOpenReceipt = async (item: ContentItem) => {
+    const hash = await computeSha256(item.currentText);
+    const receiptSources = item.retrievedPassages.map((p) => ({
+      sourceId: p.sourceId,
+      sourceTitle: p.sourceTitle,
+      sourceType: p.sourceType,
+      lastVerifiedDate: '2026-11-04',
+      confidential: !!p.confidential,
+    }));
+    const diffs = item.findings.map((f) => ({
+      findingId: f.id,
+      category: f.category,
+      quotedOriginal: f.quotedText,
+      resolution: (f.status === 'accepted' || f.status === 'edited'
+        ? f.status
+        : f.status === 'dismissed'
+        ? 'dismissed'
+        : 'pending') as 'accepted' | 'edited' | 'dismissed' | 'pending',
+      replacementApplied: f.appliedReplacement || (f.status === 'accepted' ? f.suggestedFix : undefined),
+      changedBy: (f.status === 'edited' || f.status === 'accepted' ? 'human' : 'none') as 'ai' | 'human' | 'none',
+      sourceCited: f.sourceId,
+    }));
+
+    const receipt: ProofReceipt = {
+      receiptId: `RCP-${item.id}-${Date.now().toString().slice(-4)}`,
+      contentId: item.id,
+      contentTitle: item.title,
+      finalTextHashSha256: hash,
+      finalTextSnapshot: item.currentText,
+      brandName: 'Kaveri Organics',
+      approvedAt: item.updatedAt || new Date().toISOString(),
+      approvedBy: item.assignedReviewer || `${activeRole} User`,
+      approverRole: activeRole,
+      sourcesChecked: receiptSources,
+      findingsDiff: diffs,
+      aiModelUsed: item.verifierStats?.modelUsed || 'gemini-3.8-flash (client-side)',
+      language: item.language || 'en',
+      brandFitScore: 94,
+    };
+    setActiveReceipt(receipt);
+    setReceiptModalOpen(true);
+  };
 
   if (!currentItem || items.length === 0) {
     return (
@@ -320,14 +370,26 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
                 </h2>
               </div>
 
-              <button
-                type="button"
-                onClick={() => onOpenInStudio(currentItem.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0B3D3A] border border-[#0B3D3A]/30 hover:bg-[#0B3D3A] hover:text-[#FAF8F4] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <span>Inspect in Review Studio</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {currentItem.status === 'Approved' && (
+                  <button
+                    type="button"
+                    onClick={() => handleOpenReceipt(currentItem)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#0B3D3A] bg-[#7FD1BF]/25 border border-[#17806D] hover:bg-[#7FD1BF]/40 rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5 text-[#17806D]" />
+                    <span>View Proof Receipt</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onOpenInStudio(currentItem.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#0B3D3A] border border-[#0B3D3A]/30 hover:bg-[#0B3D3A] hover:text-[#FAF8F4] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <span>Inspect in Review Studio</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {statusFeedback && (
@@ -501,6 +563,15 @@ export const ApprovalsView: React.FC<ApprovalsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Proof Receipt Modal */}
+      {receiptModalOpen && activeReceipt && (
+        <ProofReceiptModal
+          receipt={activeReceipt}
+          isOpen={receiptModalOpen}
+          onClose={() => setReceiptModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

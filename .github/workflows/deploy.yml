@@ -45,7 +45,18 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIRESTORE_DATABASE_ID: ${{ secrets.VITE_FIRESTORE_DATABASE_ID }}
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_BUILD_SHA: ${{ github.sha }}
         run: npm run build
+
+      - name: Verify Static Distribution Bundle
+        run: |
+          test -f dist/index.html || { echo "::error::dist/index.html is missing!"; exit 1; }
+          if grep -q '/src/main.tsx' dist/index.html; then
+            echo "::error::dist/index.html references /src/main.tsx! Build must point to bundled assets."
+            exit 1
+          fi
+          echo "Verified dist/index.html successfully (no raw source scripts)."
+
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

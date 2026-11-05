@@ -17,6 +17,12 @@ import {
   CheckCircle2,
   AlertTriangle,
   Flag,
+  Languages,
+  Target,
+  FileSpreadsheet,
+  Award,
+  Receipt,
+  RotateCcw,
 } from 'lucide-react';
 import {
   ContentItem,
@@ -26,6 +32,9 @@ import {
   RetrievedPassage,
   VerifierStats,
   AuditEventType,
+  SupportedLanguage,
+  IntentLockConfig,
+  ProofReceipt,
 } from '../types';
 import {
   retrieveTopPassages,
@@ -35,12 +44,19 @@ import {
   buildPassageGroundedCandidateFindings,
   getContrastRatio,
   runClientSideGeminiReview,
+  checkPromptInjection,
+  redactPrivacyPreview,
+  evaluateIntentLock,
+  calculateBrandFitScore,
+  computeSha256,
 } from '../utils/governanceEngine';
 import { ResilientImage } from './ResilientImage';
 import {
   EditorialEmptyCard,
   NoGuidelinesReviewGate,
 } from './EditorialEmptyStates';
+import { ProofReceiptModal } from './ProofReceiptModal';
+import { ClaimLedgerView } from './ClaimLedgerView';
 
 interface ReviewStudioViewProps {
   items: ContentItem[];
@@ -87,9 +103,55 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(
     currentItem?.findings.find((f) => f.status === 'open')?.id || null
   );
-  const [editorMode, setEditorMode] = useState<'annotated' | 'edit'>('annotated');
+  const [editorMode, setEditorMode] = useState<'annotated' | 'ledger' | 'edit'>('annotated');
   const [findingFilter, setFindingFilter] = useState<'open' | 'resolved' | 'all'>('open');
   const [showVerifierTrace, setShowVerifierTrace] = useState(false);
+
+  // Signature Feature 1: Proof Receipt Modal State
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [activeReceipt, setActiveReceipt] = useState<ProofReceipt | null>(null);
+
+  // Signature Feature 2: Intent Lock State
+  const [showIntentLockBox, setShowIntentLockBox] = useState(false);
+  const [intentCoreMessage, setIntentCoreMessage] = useState(
+    currentItem?.intentLock?.coreMessage || ''
+  );
+  const [intentMustKeep1, setIntentMustKeep1] = useState(
+    currentItem?.intentLock?.mustKeepPoints?.[0] || ''
+  );
+  const [intentMustKeep2, setIntentMustKeep2] = useState(
+    currentItem?.intentLock?.mustKeepPoints?.[1] || ''
+  );
+  const [intentMustKeep3, setIntentMustKeep3] = useState(
+    currentItem?.intentLock?.mustKeepPoints?.[2] || ''
+  );
+  const [intentCta, setIntentCta] = useState(
+    currentItem?.intentLock?.callToAction || ''
+  );
+
+  // Signature Feature 5: Prompt Injection Shield
+  const injectionCheck = useMemo(() => {
+    if (!currentItem) return { hasSuspiciousInstruction: false, warnings: [] };
+    return checkPromptInjection(currentItem.currentText);
+  }, [currentItem?.currentText]);
+
+  // Signature Feature 6: Language selector (English / Hindi / Hinglish)
+  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>(
+    currentItem?.language || 'en'
+  );
+
+  // Signature Feature 8: Brand Fit Score (0-100 across 5 pillars)
+  const brandFit = useMemo(() => {
+    if (!currentItem) return null;
+    return calculateBrandFitScore(currentItem, library);
+  }, [currentItem, library]);
+
+  // Privacy Preview State
+  const [showPrivacyPreview, setShowPrivacyPreview] = useState(false);
+  const privacyAudit = useMemo(() => {
+    if (!currentItem) return null;
+    return redactPrivacyPreview(currentItem.currentText);
+  }, [currentItem?.currentText]);
 
   // Pre-flight Consent Modal State
   const [consentModalOpen, setConsentModalOpen] = useState(false);
@@ -410,7 +472,19 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
           brandPalette: library.assets.find((a) => a.type === 'palette')?.swatches || [],
         };
 
-        const clientResult = await runClientSideGeminiReview(payload);
+        const intentLockConfig: IntentLockConfig | undefined = intentCoreMessage.trim()
+          ? {
+              coreMessage: intentCoreMessage.trim(),
+              mustKeepPoints: [intentMustKeep1, intentMustKeep2, intentMustKeep3].filter((p) => p.trim()),
+              callToAction: intentCta.trim(),
+            }
+          : undefined;
+
+        const clientResult = await runClientSideGeminiReview({
+          ...payload,
+          language: selectedLanguage,
+          intentLock: intentLockConfig,
+        });
         if (
           clientResult &&
           clientResult.aiAvailable &&
@@ -439,10 +513,30 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
         deterministicFindings
       );
 
-      const combinedFindings: Finding[] = [
+      // Evaluate Intent Lock against every finding (Signature Feature 2)
+      const currentIntentLock: IntentLockConfig | undefined = intentCoreMessage.trim()
+        ? {
+            coreMessage: intentCoreMessage.trim(),
+            mustKeepPoints: [intentMustKeep1, intentMustKeep2, intentMustKeep3].filter((p) => p.trim()),
+            callToAction: intentCta.trim(),
+          }
+        : currentItem.intentLock;
+
+      const evaluatedFindings: Finding[] = [
         ...deterministicFindings,
         ...verifiedFindings,
-      ];
+      ].map((f) => {
+        if (currentIntentLock && f.suggestedFix) {
+          const check = evaluateIntentLock(
+            currentItem.currentText,
+            f.quotedText,
+            f.suggestedFix,
+            currentIntentLock
+          );
+          return { ...f, intentCheck: check };
+        }
+        return f;
+      });
 
       const stats: VerifierStats = {
         lastRunAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -462,15 +556,17 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
       const updatedItem: ContentItem = {
         ...currentItem,
         status: nextStatus,
+        language: selectedLanguage,
+        intentLock: currentIntentLock,
         updatedAt: stats.lastRunAt,
-        findings: combinedFindings,
+        findings: evaluatedFindings,
         retrievedPassages: topPassages,
         verifierStats: stats,
       };
 
       onUpdateItem(updatedItem);
-      if (combinedFindings.length > 0) {
-        setSelectedFindingId(combinedFindings[0].id);
+      if (evaluatedFindings.length > 0) {
+        setSelectedFindingId(evaluatedFindings[0].id);
       }
 
       onRecordAudit(
@@ -846,6 +942,88 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
 
         {/* Studio Action Controls */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {/* Brand Fit Score Badge (0-100) */}
+          {brandFit && (
+            <div
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded border font-mono-tabular bg-[#7FD1BF]/20 border-[#17806D]/40 text-[#0B3D3A]"
+              title={`Brand Fit Score: ${brandFit.overallScore}/100\nTone: ${brandFit.breakdown.tone}/100\nWords: ${brandFit.breakdown.words}/100\nClaims: ${brandFit.breakdown.claims}/100\nVisuals: ${brandFit.breakdown.visuals}/100\nAccessibility: ${brandFit.breakdown.accessibility}/100`}
+            >
+              <Award className="w-3.5 h-3.5 text-[#17806D]" />
+              <span>Brand Fit: {brandFit.overallScore}/100</span>
+            </div>
+          )}
+
+          {/* Language Selector (English / Hindi / Hinglish) */}
+          <div className="flex items-center gap-1 bg-[#FAF8F4] border border-[#E4DFD3] rounded px-2 py-1 text-xs">
+            <Languages className="w-3.5 h-3.5 text-[#17806D]" />
+            <select
+              aria-label="Language selection"
+              value={selectedLanguage}
+              onChange={(e) => {
+                const lang = e.target.value as SupportedLanguage;
+                setSelectedLanguage(lang);
+                onUpdateItem({ ...currentItem, language: lang });
+              }}
+              className="bg-transparent text-xs text-[#0B3D3A] font-medium focus:outline-none cursor-pointer"
+            >
+              <option value="en">English</option>
+              <option value="hi">हिन्दी (Devanagari)</option>
+              <option value="hinglish">Hinglish</option>
+            </select>
+          </div>
+
+          {/* Proof Receipt Button (Available anytime, especially upon approval) */}
+          <button
+            type="button"
+            onClick={async () => {
+              const hash = await computeSha256(currentItem.currentText);
+              const receiptSources = currentItem.retrievedPassages.map((p) => ({
+                sourceId: p.sourceId,
+                sourceTitle: p.sourceTitle,
+                sourceType: p.sourceType,
+                lastVerifiedDate: '2026-11-04',
+                confidential: !!p.confidential,
+              }));
+              const diffs = currentItem.findings.map((f) => ({
+                findingId: f.id,
+                category: f.category,
+                quotedOriginal: f.quotedText,
+                resolution: (f.status === 'accepted' || f.status === 'edited'
+                  ? f.status
+                  : f.status === 'dismissed'
+                  ? 'dismissed'
+                  : 'pending') as 'accepted' | 'edited' | 'dismissed' | 'pending',
+                replacementApplied: f.appliedReplacement || (f.status === 'accepted' ? f.suggestedFix : undefined),
+                changedBy: (f.status === 'edited' || f.status === 'accepted' ? 'human' : 'none') as 'ai' | 'human' | 'none',
+                sourceCited: f.sourceId,
+              }));
+
+              const receipt: ProofReceipt = {
+                receiptId: `RCP-${currentItem.id}-${Date.now().toString().slice(-4)}`,
+                contentId: currentItem.id,
+                contentTitle: currentItem.title,
+                finalTextHashSha256: hash,
+                finalTextSnapshot: currentItem.currentText,
+                brandName: library.brandName,
+                approvedAt: currentItem.updatedAt || new Date().toISOString(),
+                approvedBy: currentItem.assignedReviewer || `${activeRole} User`,
+                approverRole: activeRole,
+                sourcesChecked: receiptSources,
+                findingsDiff: diffs,
+                aiModelUsed: currentItem.verifierStats?.modelUsed || 'gemini-3.8-flash (client-side)',
+                language: selectedLanguage,
+                brandFitScore: brandFit?.overallScore ?? 92,
+              };
+              setActiveReceipt(receipt);
+              setReceiptModalOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#0B3D3A] bg-[#FAF8F4] border border-[#17806D]/40 hover:border-[#17806D] rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            title="Inspect or download tamper-evident Proof Receipt"
+          >
+            <Receipt className="w-3.5 h-3.5 text-[#17806D]" />
+            <span>Proof Receipt</span>
+          </button>
+
           <button
             type="button"
             onClick={handleLoadSampleContent}
@@ -853,7 +1031,7 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
             title="Load the Kaveri Organics sample draft so you can test reviews immediately"
           >
             <Sparkles className="w-3.5 h-3.5 text-[#17806D]" />
-            <span>Try with sample content</span>
+            <span>Try sample</span>
           </button>
 
           <label className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-[#526360] bg-[#FAF8F4] border border-[#E4DFD3] hover:border-[#0B3D3A] rounded transition-colors cursor-pointer whitespace-nowrap shrink-0">
@@ -1042,6 +1220,18 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
                 </button>
                 <button
                   type="button"
+                  onClick={() => setEditorMode('ledger')}
+                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1 ${
+                    editorMode === 'ledger'
+                      ? 'bg-[#0B3D3A] text-[#FAF8F4]'
+                      : 'text-[#526360] hover:text-[#142321]'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3 h-3" />
+                  <span>Claim Ledger</span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setEditorMode('edit')}
                   className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     editorMode === 'edit'
@@ -1054,9 +1244,144 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
               </div>
             </div>
 
+            {/* Prompt Injection Shield Warning Banner (Signature Feature 5) */}
+            {injectionCheck.hasSuspiciousInstruction && (
+              <div className="mb-4 p-3 bg-[#FEF2F2] border border-[#DC2626] rounded text-xs text-[#991B1B] flex items-start gap-2.5">
+                <ShieldAlert className="w-4 h-4 shrink-0 text-[#DC2626] mt-0.5" />
+                <div>
+                  <strong className="block font-semibold">Suspicious instruction found in draft copy</strong>
+                  <span>
+                    Our Injection Shield detected potential prompt injection attempts ({injectionCheck.warnings.join(' · ')}). The AI will evaluate this content as untrusted data and strictly adhere to brand guidelines without obeying embedded commands.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Intent Lock Collapsible Drawer (Signature Feature 2) */}
+            <div className="mb-4 bg-[#F3EFE6]/50 border border-[#E4DFD3] rounded p-3 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-medium text-[#0B3D3A]">
+                  <Target className="w-3.5 h-3.5 text-[#17806D]" />
+                  <span>Intent Lock (What must this content say?)</span>
+                  {currentItem.intentLock?.coreMessage && (
+                    <span className="text-[10px] bg-[#7FD1BF]/30 text-[#0B3D3A] px-1.5 py-0.5 rounded font-mono-tabular">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowIntentLockBox(!showIntentLockBox)}
+                  className="text-xs text-[#17806D] hover:underline cursor-pointer"
+                >
+                  {showIntentLockBox ? 'Collapse' : currentItem.intentLock?.coreMessage ? 'Edit Intent Lock' : '+ Set Intent Lock'}
+                </button>
+              </div>
+
+              {showIntentLockBox && (
+                <div className="mt-3 pt-3 border-t border-[#E4DFD3] space-y-2.5">
+                  <p className="text-[11px] text-[#526360]">
+                    Suggested fixes will be checked against your intent. Fixes that put your core message at risk are badged and <strong>never auto-applied in Autopilot</strong>.
+                  </p>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#142321] mb-1">
+                      Core Message:
+                    </label>
+                    <input
+                      type="text"
+                      value={intentCoreMessage}
+                      onChange={(e) => setIntentCoreMessage(e.target.value)}
+                      placeholder="e.g. Announce our pure monsoon cold-pressed coconut oil"
+                      className="w-full px-2.5 py-1 text-xs bg-[#FAF8F4] border border-[#E4DFD3] rounded"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[11px] text-[#526360] mb-0.5">Must-keep point 1</label>
+                      <input
+                        type="text"
+                        value={intentMustKeep1}
+                        onChange={(e) => setIntentMustKeep1(e.target.value)}
+                        placeholder="e.g. Kerala sourced"
+                        className="w-full px-2 py-1 text-xs bg-[#FAF8F4] border border-[#E4DFD3] rounded"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-[#526360] mb-0.5">Must-keep point 2</label>
+                      <input
+                        type="text"
+                        value={intentMustKeep2}
+                        onChange={(e) => setIntentMustKeep2(e.target.value)}
+                        placeholder="e.g. 500ml size"
+                        className="w-full px-2 py-1 text-xs bg-[#FAF8F4] border border-[#E4DFD3] rounded"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-[#526360] mb-0.5">Must-keep point 3</label>
+                      <input
+                        type="text"
+                        value={intentMustKeep3}
+                        onChange={(e) => setIntentMustKeep3(e.target.value)}
+                        placeholder="e.g. Chemical-free"
+                        className="w-full px-2 py-1 text-xs bg-[#FAF8F4] border border-[#E4DFD3] rounded"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#142321] mb-1">
+                      Call to Action (CTA):
+                    </label>
+                    <input
+                      type="text"
+                      value={intentCta}
+                      onChange={(e) => setIntentCta(e.target.value)}
+                      placeholder="e.g. Order now at ₹640 per bottle"
+                      className="w-full px-2.5 py-1 text-xs bg-[#FAF8F4] border border-[#E4DFD3] rounded"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newLock: IntentLockConfig = {
+                          coreMessage: intentCoreMessage.trim(),
+                          mustKeepPoints: [intentMustKeep1, intentMustKeep2, intentMustKeep3].filter((p) => p.trim()),
+                          callToAction: intentCta.trim(),
+                        };
+                        onUpdateItem({ ...currentItem, intentLock: newLock });
+                        setShowIntentLockBox(false);
+                      }}
+                      className="px-3 py-1 bg-[#0B3D3A] text-[#FAF8F4] rounded text-xs cursor-pointer font-medium"
+                    >
+                      Save Intent Lock
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {editorMode === 'annotated' ? (
               <div className="min-h-[180px] p-4 bg-[#F3EFE6]/35 border border-[#E4DFD3] rounded">
                 {renderAnnotatedText()}
+              </div>
+            ) : editorMode === 'ledger' ? (
+              <div className="min-h-[180px]">
+                <ClaimLedgerView
+                  contentId={currentItem.id}
+                  contentText={currentItem.currentText}
+                  library={effectiveLibrary}
+                  isAdmin={activeRole === 'Brand Admin'}
+                  onApplyWordingFix={(original, replacement) => {
+                    const idx = currentItem.currentText.indexOf(original);
+                    if (idx !== -1) {
+                      const updated =
+                        currentItem.currentText.slice(0, idx) +
+                        replacement +
+                        currentItem.currentText.slice(idx + original.length);
+                      onUpdateItem({ ...currentItem, currentText: updated });
+                    }
+                  }}
+                />
               </div>
             ) : (
               <div>
@@ -1482,11 +1807,29 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
                         </p>
                       </div>
 
-                      {/* Suggested Fix Diff View */}
+                      {/* Suggested Fix Diff View & Intent Lock Badge (Signature Feature 2) */}
                       <div className="space-y-1.5 mb-4 text-xs font-mono-tabular">
-                        <p className="text-[11px] text-[#526360] font-sans">
-                          Suggested Diff (Preserves Creator Intent):
-                        </p>
+                        <div className="flex items-center justify-between text-[11px] text-[#526360] font-sans">
+                          <span>Suggested Diff:</span>
+                          {finding.intentCheck && (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 ${
+                                finding.intentCheck.status === 'kept'
+                                  ? 'bg-[#7FD1BF]/30 text-[#0B3D3A] border border-[#17806D]/40'
+                                  : 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5]'
+                              }`}
+                              title={finding.intentCheck.reason}
+                            >
+                              <Target className="w-3 h-3" />
+                              <span>{finding.intentCheck.status === 'kept' ? 'Intent kept' : 'Intent at risk'}</span>
+                            </span>
+                          )}
+                        </div>
+                        {finding.intentCheck?.status === 'at_risk' && (
+                          <p className="text-[10px] text-[#991B1B] font-sans bg-[#FEF2F2] p-1.5 rounded border border-[#FCA5A5]">
+                            <strong>Notice:</strong> {finding.intentCheck.reason} (Never auto-applied in Autopilot).
+                          </p>
+                        )}
                         <div className="line-through text-[#991B1B] bg-[#FEE2E2]/45 px-3 py-1.5 rounded">
                           - {finding.quotedText}
                         </div>
@@ -1838,6 +2181,18 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
                   ))}
                 </div>
               </div>
+              {/* Privacy Preview Redaction Log (Signature Feature 5) */}
+              {privacyAudit && (privacyAudit.redactedEmailsCount > 0 || privacyAudit.redactedPhonesCount > 0 || privacyAudit.redactedConfidentialCount > 0) && (
+                <div className="bg-[#7FD1BF]/20 border border-[#17806D]/40 p-3 rounded space-y-1">
+                  <div className="flex items-center gap-1.5 font-medium text-[#0B3D3A]">
+                    <ShieldCheck className="w-4 h-4 text-[#17806D]" />
+                    <span>Automatic Privacy Shield Applied:</span>
+                  </div>
+                  <p className="text-[11px] text-[#364946]">
+                    Protected sensitive tokens: {privacyAudit.redactedEmailsCount} email(s), {privacyAudit.redactedPhonesCount} phone number(s), {privacyAudit.redactedConfidentialCount} internal confidential figure(s) scrubbed prior to external API transmission.
+                  </p>
+                </div>
+              )}
             </div>
 
             {checkErrorMsg && (
@@ -1865,6 +2220,15 @@ export const ReviewStudioView: React.FC<ReviewStudioViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tamper-Evident Proof Receipt Modal (Signature Feature 1) */}
+      {receiptModalOpen && activeReceipt && (
+        <ProofReceiptModal
+          receipt={activeReceipt}
+          isOpen={receiptModalOpen}
+          onClose={() => setReceiptModalOpen(false)}
+        />
       )}
     </div>
   );

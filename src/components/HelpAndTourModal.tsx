@@ -228,6 +228,24 @@ export const PAGE_HELP_BULLETS: Record<
       'Download a copy of your workspace data or delete your account completely.',
     ],
   },
+  status: {
+    title: 'System Status',
+    oneLine: 'Check whether Firebase, database, AI quota, and build keys are connected.',
+    bullets: [
+      'Confirm all required environment variables are set without exposing secret values.',
+      'Test your live connection to Firebase Authentication and Cloud Firestore.',
+      'Monitor your daily free-tier AI check quota and view your build SHA.',
+    ],
+  },
+  'accuracy-lab': {
+    title: 'Accuracy Lab',
+    oneLine: 'Test the brand checker against 12 known-error cases to measure honest accuracy.',
+    bullets: [
+      'Run the verification pipeline against 12 benchmark cases with ground-truth errors.',
+      'Inspect honest metrics: errors found, missed errors, false alarms, and citation accuracy.',
+      'Export the benchmark results as JSON or CSV with date and model transparency.',
+    ],
+  },
 };
 
 export const HelpAndTourModal: React.FC<HelpAndTourModalProps> = ({
